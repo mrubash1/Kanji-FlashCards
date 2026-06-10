@@ -1,0 +1,2904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>漢字 Flash</title>
+
+  <!-- Google Fonts: Noto Sans JP handles Japanese characters beautifully -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─────────────────────────────────────────────
+       DESIGN TOKENS  — change these to retheme the whole app
+       ───────────────────────────────────────────── */
+    :root {
+      --bg:           #1a1a2e;   /* deep indigo night sky */
+      --surface:      #16213e;   /* card background */
+      --surface2:     #0f3460;   /* elevated surface */
+      --accent:       #e94560;   /* hot coral-red — the "ink stamp" colour */
+      --accent-soft:  #ff6b8a;   /* lighter version for hover */
+      --gold:         #f5a623;   /* correct answer glow */
+      --text:         #eaeaea;   /* primary text */
+      --text-dim:     #8892a4;   /* secondary / hint text */
+      --correct:      #4caf7d;   /* green for correct */
+      --wrong:        #e94560;   /* red for wrong (reuses accent) */
+      --radius:       16px;
+      --radius-sm:    8px;
+    }
+
+    /* ─────────────────────────────────────────────
+       RESET & BASE
+       ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    /* ─────────────────────────────────────────────
+       SCREEN VISIBILITY HELPERS
+       Each "screen" is hidden by default.
+       JavaScript adds/removes the .active class to show one at a time.
+       ───────────────────────────────────────────── */
+    .screen { display: none; width: 100%; max-width: 480px; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+    /* ─────────────────────────────────────────────
+       WELCOME / SPLASH SHARED STYLES
+       ───────────────────────────────────────────── */
+
+    .logo {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 4rem;
+      line-height: 1;
+      color: var(--accent);
+      /* Subtle text shadow to mimic an ink stamp */
+      text-shadow: 3px 3px 0px rgba(233, 69, 96, 0.3);
+    }
+
+    .title { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.05em; }
+    .subtitle { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; max-width: 320px; }
+
+    /* ─────────────────────────────────────────────
+       BUTTONS
+       ───────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 0.8rem 2rem;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      transition: transform 0.1s ease, opacity 0.1s ease;
+    }
+    .btn:hover  { opacity: 0.9; }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-outline { background: transparent; color: var(--text); border: 2px solid var(--surface2); }
+    .btn-correct { background: var(--correct); color: #fff; }
+    .btn-wrong   { background: var(--wrong);   color: #fff; }
+
+    /* ─────────────────────────────────────────────
+       SCORE BAR  (shown during the game)
+       ───────────────────────────────────────────── */
+    #score-bar {
+      width: 100%;
+      max-width: 480px;
+      display: none;           /* hidden until game starts */
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    #score-bar.active { display: flex; }
+
+    #score-bar .score-number { color: var(--gold); font-weight: 700; font-size: 1rem; }
+
+    /* Each column stacks its main value over a small "previous best" line */
+    #score-bar .sb-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      flex: 1;
+    }
+
+    /* The faint "prev best" line beneath the timer and score */
+    .sb-prev {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      opacity: 0.8;
+      min-height: 0.8rem; /* reserve space so the bar doesn't jump */
+    }
+
+    /* Timer pill — sits in the centre of the score bar */
+    #timer-display {
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums; /* digits don't shift width */
+      color: var(--text);
+      letter-spacing: 0.03em;
+    }
+    #timer-display.timer-warn { color: var(--gold); }   /* >2 min */
+    #timer-display.timer-hot  { color: var(--accent); } /* >5 min */
+
+    /* ── Global stats banner on topic picker ─────────────────────────── */
+    #global-stats {
+      width: 100%;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 0.65rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 0.75rem;
+    }
+    #global-stats .gs-val {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    #global-stats .gs-label { font-size: 0.7rem; display: block; }
+
+    /* ── Personal-best strip shown on the end screen ─────────────────── */
+    #personal-best {
+      width: 100%;
+      max-width: 320px;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 1rem;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: center;
+      display: none; /* shown only when a PB exists */
+    }
+    #personal-best .pb-highlight { color: var(--gold); font-weight: 700; }
+    #personal-best.new-record    { border: 1px solid var(--gold); }
+
+    /* ─────────────────────────────────────────────
+       PROGRESS BAR  (thin line showing progress through deck)
+       ───────────────────────────────────────────── */
+    #progress-wrap {
+      width: 100%;
+      max-width: 480px;
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      margin-bottom: 1.5rem;
+      display: none;
+    }
+    #progress-wrap.active { display: block; }
+
+    #progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    /* ─────────────────────────────────────────────
+       THE FLASHCARD
+       ───────────────────────────────────────────── */
+    #card {
+      width: 100%;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      /* A subtle border that lights up on feedback */
+      border: 2px solid var(--surface2);
+      transition: border-color 0.3s ease;
+      /* Entrance animation */
+      animation: slideIn 0.25s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Card flashes green/red to confirm answer */
+    #card.flash-correct { border-color: var(--correct); }
+    #card.flash-wrong   { border-color: var(--wrong); }
+
+    /* The big kanji character */
+    .kanji-display {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 5rem;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    /* The English meaning */
+    .english-display {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Phase label e.g. "Phase 1: Recognition" */
+    .phase-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+    }
+
+    /* Hint text shown below the kanji in phase 1 */
+    .hint-text {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+    }
+
+    /* ─────────────────────────────────────────────
+       PHASE 1 BUTTONS (I know it / Not sure)
+       ───────────────────────────────────────────── */
+    .phase1-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ─────────────────────────────────────────────
+       PHASE 2 — ANSWER INPUT
+       ───────────────────────────────────────────── */
+    #answer-area,
+    #meaning-area { width: 100%; }
+
+    #answer-input,
+    #meaning-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--surface2);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1.1rem;
+      font-family: 'Noto Sans JP', sans-serif;
+      text-align: center;
+      margin-bottom: 0.75rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    #answer-input:focus,
+    #meaning-input:focus { border-color: var(--accent); }
+
+    /* Feedback message shown after answering */
+    #feedback {
+      min-height: 2rem;
+      font-size: 0.95rem;
+      text-align: center;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    #feedback.correct { color: var(--correct); }
+    #feedback.wrong   { color: var(--wrong); }
+
+    /* ─────────────────────────────────────────────
+       END SCREEN
+       ───────────────────────────────────────────── */
+    #end-screen {
+      text-align: center;
+      gap: 1.25rem;
+    }
+
+    .end-emoji { font-size: 3rem; }
+
+    .final-score {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .final-label {
+      font-size: 1rem;
+      color: var(--text-dim);
+    }
+
+    .score-message {
+      font-size: 1rem;
+      color: var(--text);
+      background: var(--surface);
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius-sm);
+      max-width: 300px;
+    }
+
+    /* ─────────────────────────────────────────────
+       TOPIC PICKER SCREEN
+       ───────────────────────────────────────────── */
+    #topic-screen { gap: 1.25rem; }
+
+    .topic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    /* Each topic is a button styled as a card */
+    .topic-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 1.1rem 0.75rem;
+      background: var(--surface);
+      border: 2px solid var(--surface2);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+      text-align: center;
+    }
+    .topic-card:hover  { border-color: #4ade80; }
+    .topic-card:active { transform: scale(0.97); }
+
+    /* "Cards seen" topic — gold accent */
+    .topic-card.seen-card  { border-color: rgba(245,166,35,0.4); }
+    .topic-card.seen-card:hover { border-color: var(--gold); }
+    .topic-card.seen-card .topic-kanji { color: var(--gold); }
+
+    /* "Mistakes" topic — red accent */
+    .topic-card.mistake-card  { border-color: rgba(233,69,96,0.4); }
+    .topic-card.mistake-card:hover { border-color: var(--accent); }
+    .topic-card.mistake-card .topic-kanji { color: var(--accent); }
+
+    /* "All cards" button — purple accent, full width */
+    .topic-card.all-card { border-color: rgba(167,139,250,0.4); }
+    .topic-card.all-card:hover { border-color: #a78bfa; }
+    .topic-card.all-card .topic-kanji { color: #a78bfa; }
+
+    /* Locked/empty state — not enough cards yet */
+    .topic-card.locked {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Big kanji sample shown on each topic card */
+    .topic-kanji {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 2rem;
+      color: #4ade80;
+      line-height: 1;
+    }
+
+    /* Topic name in English */
+    .topic-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* How many cards in this topic */
+    .topic-count {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    /* ─────────────────────────────────────────────
+       SOUND BUTTON
+       The button lives below the feedback row in Phase 2
+       and also inside the not-sure reveal panel.
+       It is invisible + unclickable by default; JS adds
+       the .visible class after the answer is checked.
+       ───────────────────────────────────────────── */
+    .sound-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      width: 100%;
+      padding: 0.6rem 1rem;
+      margin-top: 0.6rem;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--surface2);
+      background: transparent;
+      color: var(--text-dim);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      /* Hidden by default — opacity 0 and pointer-events none
+         so it takes up space in the layout but cannot be clicked */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    /* .visible is added by JS after the answer is checked */
+    .sound-btn.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sound-btn:hover  { border-color: var(--accent); color: var(--text); }
+    .sound-btn:active { transform: scale(0.97); }
+
+    /* Spin the speaker icon while audio is playing */
+    .sound-btn.playing { border-color: var(--gold); color: var(--gold); }
+
+    /* ─────────────────────────────────────────────
+       WELCOME SCREEN
+       ───────────────────────────────────────────── */
+    #welcome-screen { gap: 1.25rem; text-align: center; }
+
+    .welcome-points {
+      text-align: left;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin: 0.5rem 0;
+    }
+    .welcome-point {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .welcome-point .wp-icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      line-height: 1.3;
+    }
+    .welcome-point .wp-dim { color: var(--text-dim); }
+
+    /* ─────────────────────────────────────────────
+       LEVEL SELECT SCREEN
+       ───────────────────────────────────────────── */
+    #level-screen { gap: 1rem; }
+
+    .level-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
+    .level-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: var(--surface);
+      border: 2px solid var(--surface2);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      text-align: left;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+      width: 100%;
+    }
+    .level-card:hover  { border-color: #4ade80; }
+    .level-card:active { transform: scale(0.98); }
+
+    .level-card .lvl-badge {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #4ade80;
+      min-width: 2.5rem;
+    }
+    .level-card .lvl-info { flex: 1; }
+    .level-card .lvl-name { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .level-card .lvl-desc { font-size: 0.78rem; color: var(--text-dim); }
+    .level-card .lvl-arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+    /* Locked levels (N4-N1 for now) */
+    .level-card.locked {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .level-card.locked .lvl-badge { color: var(--text-dim); }
+    .level-card .lvl-lock { font-size: 1rem; }
+
+    /* ─────────────────────────────────────────────
+       SAVE BUTTON + TOAST
+       ───────────────────────────────────────────── */
+    .save-btn {
+      background: transparent;
+      border: 2px solid var(--surface2);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .save-btn:hover  { border-color: var(--gold); color: var(--gold); }
+    .save-btn:active { transform: scale(0.97); }
+
+    /* Toast notification slides up from the bottom */
+    #toast {
+      position: fixed;
+      bottom: -80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface2);
+      color: var(--text);
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid var(--gold);
+      transition: bottom 0.35s ease;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    #toast.show { bottom: 24px; }
+
+    /* ─────────────────────────────────────────────
+       STUDY LIST  (browse kanji before practising)
+       ───────────────────────────────────────────── */
+    /* The "Study the kanji first" button on the topic screen */
+    .study-link {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 2px dashed var(--surface2);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+    .study-link:hover  { border-color: var(--gold); }
+    .study-link:active { transform: scale(0.99); }
+    .study-link .sl-sub { color: var(--text-dim); font-weight: 400; font-size: 0.78rem; }
+
+    /* Each topic section in the study list */
+    .study-section { width: 100%; margin-bottom: 1.25rem; }
+    .study-section h3 {
+      font-size: 0.95rem;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--surface2);
+    }
+
+    /* One row per kanji */
+    .study-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.55rem 0.6rem;
+      border-radius: var(--radius-sm);
+      transition: background 0.12s ease;
+    }
+    .study-row:hover { background: var(--surface); }
+
+    .study-row .sr-kanji {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 1.9rem;
+      color: var(--text);
+      min-width: 2.4rem;
+      text-align: center;
+      line-height: 1;
+    }
+    .study-row .sr-info { flex: 1; }
+    .study-row .sr-english {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .study-row .sr-reading {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    .study-row .sr-romaji { color: var(--text-dim); font-style: italic; }
+
+    /* Small round speak button on each row */
+    .sr-speak {
+      flex-shrink: 0;
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 50%;
+      border: 1px solid var(--surface2);
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .sr-speak:hover   { border-color: var(--gold); color: var(--gold); }
+    .sr-speak.playing { border-color: var(--gold); color: var(--gold); }
+
+    /* ─────────────────────────────────────────────
+       LEVEL MASTERY BAR  (overall progress on the topic screen)
+       ───────────────────────────────────────────── */
+    #mastery-wrap {
+      width: 100%;
+      margin-bottom: 0.85rem;
+    }
+    .mastery-bar {
+      width: 100%;
+      height: 12px;
+      border-radius: 6px;
+      background: var(--surface2);
+      overflow: hidden;
+      display: flex;
+    }
+    /* Green = perfect, yellow = cleared with a mistake. Widths set in JS. */
+    #mastery-green {
+      height: 100%;
+      background: #4ade80;
+      transition: width 0.4s ease;
+    }
+    #mastery-yellow {
+      height: 100%;
+      background: var(--gold);
+      transition: width 0.4s ease;
+    }
+    /* Little legend under the bar */
+    .mastery-legend {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 0.4rem;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+    .mastery-legend .ml-item { display: flex; align-items: center; gap: 0.3rem; }
+    .mastery-legend .ml-dot {
+      width: 0.6rem; height: 0.6rem; border-radius: 50%;
+      display: inline-block;
+    }
+    .ml-dot.green  { background: #4ade80; }
+    .ml-dot.yellow { background: var(--gold); }
+    .ml-dot.empty  { background: var(--surface2); }
+
+    /* ─────────────────────────────────────────────
+       CUSTOM DECKS  (My Decks manager + editor)
+       ───────────────────────────────────────────── */
+    /* The "My Decks" card on the level screen — purple, like All cards */
+    .level-card.custom-card { border-color: rgba(167,139,250,0.4); }
+    .level-card.custom-card:hover { border-color: #a78bfa; }
+    .level-card.custom-card .lvl-badge { color: #a78bfa; }
+
+    /* A row in the deck list */
+    .deck-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.9rem 1rem;
+      background: var(--surface);
+      border: 2px solid var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 0.6rem;
+      width: 100%;
+    }
+    .deck-row .dr-info { flex: 1; min-width: 0; }
+    .deck-row .dr-name {
+      font-size: 1rem; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .deck-row .dr-meta { font-size: 0.78rem; color: var(--text-dim); }
+    .deck-row .dr-btn {
+      flex-shrink: 0;
+      border: 1px solid var(--surface2);
+      background: transparent;
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 0.45rem 0.8rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .dr-btn.dr-play { border-color: rgba(74,222,128,0.5); color: #4ade80; }
+    .dr-btn.dr-play:hover { border-color: #4ade80; }
+    .dr-btn.dr-edit:hover { border-color: var(--gold); color: var(--gold); }
+
+    .deck-empty {
+      text-align: center; color: var(--text-dim);
+      font-size: 0.9rem; padding: 2rem 1rem; line-height: 1.6;
+    }
+
+    /* Editor fields */
+    .editor-field { width: 100%; margin-bottom: 1rem; }
+    .editor-label {
+      display: block; font-size: 0.78rem; font-weight: 600;
+      color: var(--text-dim); margin-bottom: 0.35rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .editor-input {
+      width: 100%; padding: 0.7rem 0.9rem;
+      border-radius: var(--radius-sm); border: 2px solid var(--surface2);
+      background: var(--bg); color: var(--text);
+      font-size: 1rem; font-family: 'Inter', sans-serif; outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .editor-input:focus { border-color: #a78bfa; }
+    select.editor-input { cursor: pointer; }
+    .editor-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.35rem; }
+    .editor-section-title {
+      width: 100%; font-size: 0.95rem; color: #a78bfa;
+      margin: 0.5rem 0 0.6rem; padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--surface2);
+    }
+
+    /* A single card-editing row in the editor */
+    .card-edit {
+      width: 100%; background: var(--surface);
+      border: 1px solid var(--surface2); border-radius: var(--radius-sm);
+      padding: 0.7rem; margin-bottom: 0.6rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .card-edit .ce-top {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .card-edit .ce-num { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; }
+    .card-edit .ce-remove {
+      background: transparent; border: none; color: var(--accent);
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0.2rem;
+    }
+    .card-edit input {
+      width: 100%; padding: 0.5rem 0.7rem;
+      border-radius: var(--radius-sm); border: 1px solid var(--surface2);
+      background: var(--bg); color: var(--text);
+      font-size: 0.9rem; font-family: 'Noto Sans JP', sans-serif; outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .card-edit input:focus { border-color: #a78bfa; }
+    .card-edit input.ce-dim { opacity: 0.5; }
+
+    /* ─────────────────────────────────────────────
+       RESPONSIVE — works on mobile too
+       ───────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .kanji-display { font-size: 4rem; }
+      .btn { padding: 0.75rem 1.25rem; font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast notification (used for save confirmation) -->
+  <div id="toast"></div>
+
+  <!-- ═══════════════════════════════════════════
+       WELCOME SCREEN  (first thing the player sees)
+       ═══════════════════════════════════════════ -->
+  <section id="welcome-screen" class="screen active">
+    <div class="logo">漢字</div>
+    <h1 class="title">Kanji Flash</h1>
+
+    <p class="subtitle" style="max-width:340px; line-height:1.7;">
+      You'll see a kanji. Type what it means, then how it's read.
+      Get one wrong and it'll show up again until you've got it.
+    </p>
+
+    <button class="btn btn-primary" onclick="showScreen('level-screen')">Get started →</button>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       LEVEL SELECT SCREEN
+       ═══════════════════════════════════════════ -->
+  <section id="level-screen" class="screen">
+    <h2 class="title" style="margin-bottom:0.25rem;">Choose your level</h2>
+    <p class="subtitle" style="margin-bottom:0.5rem;">JLPT levels go from N5 (easiest) to N1 (hardest)</p>
+
+    <div class="level-grid">
+      <button class="level-card" onclick="selectLevel('N5')">
+        <span class="lvl-badge">N5</span>
+        <span class="lvl-info">
+          <span class="lvl-name">Beginner</span>
+          <span class="lvl-desc">80 essential kanji · 8 topics</span>
+        </span>
+        <span class="lvl-arrow">→</span>
+      </button>
+
+      <button class="level-card" onclick="selectLevel('N4')">
+        <span class="lvl-badge">N4</span>
+        <span class="lvl-info">
+          <span class="lvl-name">Elementary</span>
+          <span class="lvl-desc">164 kanji · 9 topics</span>
+        </span>
+        <span class="lvl-arrow">→</span>
+      </button>
+
+      <button class="level-card locked">
+        <span class="lvl-badge">N3</span>
+        <span class="lvl-info">
+          <span class="lvl-name">Intermediate</span>
+          <span class="lvl-desc">Coming soon</span>
+        </span>
+        <span class="lvl-lock">🔒</span>
+      </button>
+
+      <button class="level-card locked">
+        <span class="lvl-badge">N2</span>
+        <span class="lvl-info">
+          <span class="lvl-name">Upper intermediate</span>
+          <span class="lvl-desc">Coming soon</span>
+        </span>
+        <span class="lvl-lock">🔒</span>
+      </button>
+
+      <button class="level-card locked">
+        <span class="lvl-badge">N1</span>
+        <span class="lvl-info">
+          <span class="lvl-name">Advanced</span>
+          <span class="lvl-desc">Coming soon</span>
+        </span>
+        <span class="lvl-lock">🔒</span>
+      </button>
+
+      <!-- Custom decks entry -->
+      <button class="level-card custom-card" onclick="showDeckList()">
+        <span class="lvl-badge">✏️</span>
+        <span class="lvl-info">
+          <span class="lvl-name">My Decks</span>
+          <span class="lvl-desc">Create &amp; study your own cards</span>
+        </span>
+        <span class="lvl-arrow">→</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       MY DECKS — list of custom decks
+       ═══════════════════════════════════════════ -->
+  <section id="deck-list-screen" class="screen">
+    <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.75rem;">
+      <button class="save-btn" onclick="showScreen('level-screen')">← Levels</button>
+      <button class="save-btn" onclick="newDeck()">＋ New deck</button>
+      <button class="save-btn" onclick="saveProgress()">💾 Save</button>
+    </div>
+    <h2 class="title" style="margin-bottom:0.25rem;">My Decks</h2>
+    <p class="subtitle" style="margin-bottom:1rem;">Your own subjects and cards</p>
+
+    <!-- Combined progress across ALL custom decks (hidden until a deck exists) -->
+    <div id="custom-mastery-wrap" style="display:none; width:100%; margin-bottom:0.85rem;">
+      <div class="mastery-bar">
+        <div id="cm-green" style="width:0%; height:100%; background:#4ade80; transition:width 0.4s ease;"></div>
+        <div id="cm-yellow" style="width:0%; height:100%; background:var(--gold); transition:width 0.4s ease;"></div>
+      </div>
+      <div class="mastery-legend">
+        <span class="ml-item"><span class="ml-dot green"></span><span id="cm-green-count">0</span> learned</span>
+        <span class="ml-item"><span class="ml-dot yellow"></span><span id="cm-yellow-count">0</span> with slips</span>
+        <span class="ml-item"><span class="ml-dot empty"></span><span id="cm-empty-count">0</span> to go</span>
+      </div>
+    </div>
+
+    <!-- Deck cards injected here -->
+    <div id="deck-list" style="width:100%;"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       DECK EDITOR — create / edit one custom deck
+       ═══════════════════════════════════════════ -->
+  <section id="deck-editor-screen" class="screen">
+    <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <button class="save-btn" onclick="showDeckList()">← My Decks</button>
+      <button class="save-btn" onclick="deleteCurrentDeck()" style="border-color: rgba(233,69,96,0.4); color: var(--accent);">🗑 Delete deck</button>
+    </div>
+    <h2 class="title" style="margin-bottom:0.75rem;">Edit deck</h2>
+
+    <!-- Deck name + phase mode -->
+    <div class="editor-field">
+      <label class="editor-label">Deck name</label>
+      <input id="deck-name-input" class="editor-input" type="text" placeholder="e.g. Kitchen vocabulary" autocomplete="off" />
+    </div>
+    <div class="editor-field">
+      <label class="editor-label">Quiz style</label>
+      <select id="deck-phase-select" class="editor-input" onchange="updatePhaseHint()">
+        <option value="both">Meaning, then reading (2 steps)</option>
+        <option value="meaning">Meaning only (1 step)</option>
+        <option value="reading">Reading only (1 step)</option>
+      </select>
+      <div class="editor-hint" id="phase-hint">Players type the meaning, then the reading.</div>
+    </div>
+
+    <!-- Card editor -->
+    <h3 class="editor-section-title">Cards</h3>
+    <div id="card-editor-list" style="width:100%;"></div>
+    <button class="study-link" onclick="addCardRow()" style="margin-top:0.5rem;">＋ Add a card</button>
+
+    <!-- Actions -->
+    <div style="display:flex; flex-direction:column; gap:0.6rem; width:100%; max-width:300px; margin-top:1.25rem;">
+      <button class="btn btn-primary" onclick="saveCurrentDeck()">Save deck →</button>
+      <button class="btn btn-outline" onclick="playCurrentDeck()">Save &amp; play →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       TOPIC PICKER SCREEN
+       ═══════════════════════════════════════════ -->
+  <section id="topic-screen" class="screen">
+    <!-- Top row: back to levels + save progress -->
+    <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <button class="save-btn" onclick="showScreen('level-screen')">← Levels</button>
+      <button class="save-btn" onclick="saveProgress()">💾 Save progress</button>
+    </div>
+    <h2 class="title" style="margin-bottom:0.25rem;">Choose a topic <span id="topic-level-label" style="color:#4ade80;">N5</span></h2>
+
+    <!-- Overall mastery bar for this level (persists across sessions) -->
+    <div id="mastery-wrap">
+      <div class="mastery-bar">
+        <div id="mastery-green" style="width:0%;"></div>
+        <div id="mastery-yellow" style="width:0%;"></div>
+      </div>
+      <div class="mastery-legend">
+        <span class="ml-item"><span class="ml-dot green"></span><span id="ml-green-count">0</span> perfect</span>
+        <span class="ml-item"><span class="ml-dot yellow"></span><span id="ml-yellow-count">0</span> with slips</span>
+        <span class="ml-item"><span class="ml-dot empty"></span><span id="ml-empty-count">0</span> to go</span>
+      </div>
+    </div>
+
+    <!-- Global stats banner — total score across all sessions this visit -->
+    <div id="global-stats">
+      <div>
+        <span class="gs-label">Total score</span>
+        <span class="gs-val" id="gs-score">0</span>
+      </div>
+      <div style="text-align:center;">
+        <span class="gs-label">Sessions played</span>
+        <span class="gs-val" id="gs-sessions">0</span>
+      </div>
+      <div style="text-align:right;">
+        <span class="gs-label">Best accuracy</span>
+        <span class="gs-val" id="gs-accuracy">—</span>
+      </div>
+    </div>
+
+    <p class="subtitle" style="margin-bottom:0.5rem;">Pick a category to study</p>
+
+    <!-- Study-first link: browse all kanji with meanings + readings -->
+    <button class="study-link" onclick="showStudyList()" style="margin-bottom:0.75rem;">
+      📚 Study the kanji first
+      <span class="sl-sub">— see all meanings &amp; readings</span>
+    </button>
+
+    <!-- Dynamic "your progress" topics — populated from play history -->
+    <div class="topic-grid" id="dynamic-topic-grid" style="margin-bottom:0.5rem;"></div>
+
+    <!-- Divider -->
+    <div style="width:100%; height:1px; background:var(--surface2); margin:0.25rem 0 0.75rem;"></div>
+
+    <!-- Standard topic cards -->
+    <div class="topic-grid" id="topic-grid"></div>
+
+    <!-- Divider -->
+    <div style="width:100%; height:1px; background:var(--surface2); margin:0.75rem 0;"></div>
+
+    <!-- All cards — full deck -->
+    <div class="topic-grid" id="all-cards-grid"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       STUDY LIST SCREEN  (reference list, no quiz)
+       ═══════════════════════════════════════════ -->
+  <section id="study-screen" class="screen">
+    <div style="width:100%; display:flex; justify-content:flex-start; margin-bottom:0.75rem;">
+      <button class="save-btn" onclick="showScreen('topic-screen')">← Back</button>
+    </div>
+    <h2 class="title" style="margin-bottom:0.25rem;">Study list</h2>
+    <p class="subtitle" style="margin-bottom:1rem;">
+      Tap 🔊 to hear any word. Ready to practise? Head back and pick a topic.
+    </p>
+    <!-- Sections injected here by buildStudyList() -->
+    <div id="study-list" style="width:100%;"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════
+       SCORE BAR  (lives outside game-screen so it stays fixed above card)
+       ═══════════════════════════════════════════ -->
+  <div id="score-bar">
+    <span class="sb-col" style="text-align:left;">
+      <span id="word-counter">20 cards left</span>
+    </span>
+    <span class="sb-col" style="text-align:center;">
+      <span id="timer-display">0:00</span>
+      <span class="sb-prev" id="prev-time"></span>
+    </span>
+    <span class="sb-col" style="text-align:right;">
+      <span>Score: <span class="score-number" id="score-display">0 / 0</span></span>
+      <span class="sb-prev" id="prev-score"></span>
+    </span>
+  </div>
+
+  <!-- Thin progress line -->
+  <div id="progress-wrap"><div id="progress-fill"></div></div>
+
+  <!-- ═══════════════════════════════════════════
+       GAME SCREEN
+       ═══════════════════════════════════════════ -->
+  <section id="game-screen" class="screen">
+
+    <!-- The flashcard box -->
+    <div id="card">
+
+      <!-- Phase label e.g. "Phase 1 · Meaning" -->
+      <div class="phase-label" id="phase-label">Phase 1 · Meaning</div>
+
+      <!-- The kanji character (big) — always visible -->
+      <div class="kanji-display" id="kanji-display">水</div>
+
+      <!-- English meaning — hidden in Phase 1, revealed in Phase 2 -->
+      <div class="english-display" id="english-display" style="display:none;">water</div>
+
+      <!-- ── PHASE 1: Meaning input ───────────────────────────────────── -->
+      <div id="phase1-content">
+        <div class="hint-text" style="margin-bottom:1rem;">
+          What does this kanji mean in English?
+        </div>
+        <div id="feedback"></div>
+        <div id="meaning-area">
+          <input
+            id="meaning-input"
+            type="text"
+            placeholder="e.g.  water"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <button class="btn btn-primary" style="width:100%;" onclick="checkMeaning()">Check →</button>
+        </div>
+        <!-- "Next" button — hidden until meaning is checked -->
+        <button
+          id="meaning-next-btn"
+          class="btn btn-outline"
+          style="width:100%; margin-top:0.75rem; display:none;"
+          onclick="proceedToReading()"
+        >Next — try the reading →</button>
+      </div>
+
+
+      <!-- ── PHASE 2: Reading input ───────────────────────────────────── -->
+      <div id="phase2-content" style="display:none;">
+        <div class="hint-text" style="margin-bottom:1rem;">
+          Now type the reading — hiragana or romaji both work!
+        </div>
+        <div id="feedback2"></div>
+        <div id="answer-area">
+          <input
+            id="answer-input"
+            type="text"
+            placeholder="e.g.  みず  or  mizu"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <button class="btn btn-primary" style="width:100%;" onclick="checkReading()">Check →</button>
+        </div>
+        <button id="sound-btn" class="sound-btn" onclick="speakCurrent()">
+          🔊 Hear pronunciation
+        </button>
+        <button
+          id="next-btn"
+          class="btn btn-outline"
+          style="width:100%; margin-top:0.75rem; display:none;"
+          onclick="nextWord()"
+        >Next word →</button>
+      </div>
+
+    </div><!-- /#card -->
+  </section><!-- /#game-screen -->
+
+  <!-- ═══════════════════════════════════════════
+       END SCREEN
+       ═══════════════════════════════════════════ -->
+  <section id="end-screen" class="screen">
+    <div class="end-emoji" id="end-emoji">🎉</div>
+    <h2 class="title">Topic complete!</h2>
+    <!-- e.g. "Nature · 7 / 7" -->
+    <div style="font-size:0.8rem; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase;" id="end-topic-label"></div>
+    <div class="final-score" id="final-score">0 / 0</div>
+    <div class="final-label">points scored  <span style="color:var(--text-dim);font-size:0.8rem;">(2 pts per card)</span></div>
+    <div class="score-message" id="score-message">Great effort!</div>
+
+    <!-- Personal best strip — hidden until there's a PB to show -->
+    <div id="personal-best">
+      <span id="pb-text"></span>
+    </div>
+
+    <!-- Time taken this run -->
+    <div style="font-size:0.85rem; color:var(--text-dim);">
+      Time: <span id="end-time" style="color:var(--text); font-weight:600;">—</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:0.75rem; width:100%; max-width:280px;">
+      <button class="btn btn-primary"  onclick="startGame(currentTopic)">Try this topic again →</button>
+      <button class="btn btn-outline"  onclick="goToTopicPicker()">Choose another topic →</button>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════
+       JAVASCRIPT
+       ═══════════════════════════════════════════ -->
+  <script>
+
+    // ─────────────────────────────────────────────
+    // SPEECH SYNTHESIS SETUP
+    //
+    // We use the browser's built-in text-to-speech engine.
+    // The key is finding a Japanese voice (lang "ja-JP").
+    // Voices load asynchronously in Chrome/Edge/Firefox, so we
+    // listen for the voiceschanged event and grab the voice then.
+    // ─────────────────────────────────────────────
+    let japaneseVoice = null; // will be set once voices are loaded
+
+    function loadJapaneseVoice() {
+      // getVoices() returns all voices the OS/browser has installed
+      const voices = window.speechSynthesis.getVoices();
+      // Find the first voice whose language tag starts with "ja"
+      japaneseVoice = voices.find(v => v.lang.startsWith('ja')) || null;
+    }
+
+    // Voices may already be loaded (Safari) or arrive later (Chrome/Firefox)
+    loadJapaneseVoice();
+    window.speechSynthesis.addEventListener('voiceschanged', loadJapaneseVoice);
+
+
+    // ─────────────────────────────────────────────
+    // SPEAK CURRENT WORD
+    // Reads the hiragana reading of the current card aloud.
+    // Called by both sound buttons (phase 2 and reveal panel).
+    // ─────────────────────────────────────────────
+    function speakCurrent() {
+      // Use the pinned word, not shuffledDeck[currentIndex] — by the time
+      // the button is clicked, currentIndex may have advanced past this card.
+      const word = wordToSpeak;
+      if (!word) return;
+
+      // Stop anything currently playing before starting fresh
+      window.speechSynthesis.cancel();
+
+      // SpeechSynthesisUtterance is the object that holds the text + settings
+      const utterance = new SpeechSynthesisUtterance(word.reading);
+      utterance.lang  = 'ja-JP'; // always set lang even without a specific voice
+      utterance.rate  = 0.85;    // slightly slower than default — clearer for learners
+
+      // Use the Japanese voice if we found one; otherwise the browser picks
+      if (japaneseVoice) utterance.voice = japaneseVoice;
+
+      // Visual feedback: add .playing class while audio is active
+      const btns = document.querySelectorAll('.sound-btn');
+      btns.forEach(b => b.classList.add('playing'));
+      utterance.onend   = () => btns.forEach(b => b.classList.remove('playing'));
+      utterance.onerror = () => btns.forEach(b => b.classList.remove('playing'));
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+
+    // ─────────────────────────────────────────────
+    // SPEAK WORD  —  generic version used by the study list.
+    // Reads a given reading aloud and pulses the passed button.
+    // ─────────────────────────────────────────────
+    function speakWord(reading, btn) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(reading);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 0.85;
+      if (japaneseVoice) utterance.voice = japaneseVoice;
+      if (btn) {
+        btn.classList.add('playing');
+        utterance.onend   = () => btn.classList.remove('playing');
+        utterance.onerror = () => btn.classList.remove('playing');
+      }
+      window.speechSynthesis.speak(utterance);
+    }
+
+
+    // ─────────────────────────────────────────────
+    // THE DATA  —  all 20 N5 words live here.
+    //
+    // Each word object has:
+    //   kanji   : the character(s) to display
+    //   english : what it means in English
+    //   reading : the correct hiragana reading
+    //   romaji  : the romanised spelling (also accepted as correct)
+    //
+    // To add more words, just copy a line and fill in the details!
+    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // LEVELS  —  each JLPT level has its own deck + topics.
+    // `deck` and `topics` below are ACTIVE pointers that
+    // setActiveLevel() swaps to the chosen level's data, so all the
+    // existing deck.filter / topic.keys code keeps working unchanged.
+    // ─────────────────────────────────────────────
+    const N5_DECK = [
+      // ── Numbers ──────────────────────────────────────────────────────────
+      { kanji: "一",   english: "one",            reading: "いち",       romaji: "ichi"      },
+      { kanji: "二",   english: "two",            reading: "に",         romaji: "ni"        },
+      { kanji: "三",   english: "three",          reading: "さん",       romaji: "san"       },
+      { kanji: "四",   english: "four",           reading: "よん",       romaji: "yon"       },
+      { kanji: "五",   english: "five",           reading: "ご",         romaji: "go"        },
+      { kanji: "六",   english: "six",            reading: "ろく",       romaji: "roku"      },
+      { kanji: "七",   english: "seven",          reading: "なな",       romaji: "nana"      },
+      { kanji: "八",   english: "eight",          reading: "はち",       romaji: "hachi"     },
+      { kanji: "九",   english: "nine",           reading: "きゅう",     romaji: "kyuu"      },
+      { kanji: "十",   english: "ten",            reading: "じゅう",     romaji: "juu"       },
+      { kanji: "百",   english: "hundred",        reading: "ひゃく",     romaji: "hyaku"     },
+      { kanji: "千",   english: "thousand",       reading: "せん",       romaji: "sen"       },
+      { kanji: "万",   english: "ten thousand",   reading: "まん",       romaji: "man"       },
+      { kanji: "円",   english: "yen / circle",   reading: "えん",       romaji: "en"        },
+
+      // ── Time & Calendar ──────────────────────────────────────────────────
+      { kanji: "日",   english: "sun / day",      reading: "ひ",         romaji: "hi"        },
+      { kanji: "月",   english: "moon / month",   reading: "つき",       romaji: "tsuki"     },
+      { kanji: "火",   english: "fire / Tuesday", reading: "ひ",         romaji: "hi"        },
+      { kanji: "水",   english: "water / Wed.",   reading: "みず",       romaji: "mizu"      },
+      { kanji: "木",   english: "tree / Thursday",reading: "き",         romaji: "ki"        },
+      { kanji: "金",   english: "gold / Friday",  reading: "きん",       romaji: "kin"       },
+      { kanji: "土",   english: "earth / Sat.",   reading: "つち",       romaji: "tsuchi"    },
+      { kanji: "年",   english: "year",           reading: "とし",       romaji: "toshi"     },
+
+      // ── Nature ───────────────────────────────────────────────────────────
+      { kanji: "山",   english: "mountain",       reading: "やま",       romaji: "yama"      },
+      { kanji: "川",   english: "river",          reading: "かわ",       romaji: "kawa"      },
+      { kanji: "田",   english: "rice field",     reading: "た",         romaji: "ta"        },
+      { kanji: "天",   english: "heaven / sky",   reading: "てん",       romaji: "ten"       },
+      { kanji: "気",   english: "spirit / energy",reading: "き",         romaji: "ki"        },
+      { kanji: "雨",   english: "rain",           reading: "あめ",       romaji: "ame"       },
+      { kanji: "花",   english: "flower",         reading: "はな",       romaji: "hana"      },
+
+      // ── People & Body ─────────────────────────────────────────────────────
+      { kanji: "人",   english: "person",         reading: "ひと",       romaji: "hito"      },
+      { kanji: "口",   english: "mouth",          reading: "くち",       romaji: "kuchi"     },
+      { kanji: "目",   english: "eye",            reading: "め",         romaji: "me"        },
+      { kanji: "耳",   english: "ear",            reading: "みみ",       romaji: "mimi"      },
+      { kanji: "手",   english: "hand",           reading: "て",         romaji: "te"        },
+      { kanji: "足",   english: "foot / leg",     reading: "あし",       romaji: "ashi"      },
+      { kanji: "力",   english: "power / force",  reading: "ちから",     romaji: "chikara"   },
+      { kanji: "男",   english: "man / male",     reading: "おとこ",     romaji: "otoko"     },
+      { kanji: "女",   english: "woman / female", reading: "おんな",     romaji: "onna"      },
+      { kanji: "子",   english: "child",          reading: "こ",         romaji: "ko"        },
+
+      // ── Size, Position & Direction ────────────────────────────────────────
+      { kanji: "大きい", english: "big / large",    reading: "おおきい",   romaji: "ookii"     },
+      { kanji: "小さい", english: "small",          reading: "ちいさい",   romaji: "chiisai"   },
+      { kanji: "中",   english: "middle / inside",reading: "なか",       romaji: "naka"      },
+      { kanji: "上",   english: "above / up",     reading: "うえ",       romaji: "ue"        },
+      { kanji: "下",   english: "below / down",   reading: "した",       romaji: "shita"     },
+      { kanji: "左",   english: "left",           reading: "ひだり",     romaji: "hidari"    },
+      { kanji: "右",   english: "right",          reading: "みぎ",       romaji: "migi"      },
+      { kanji: "前",   english: "before / front", reading: "まえ",       romaji: "mae"       },
+      { kanji: "後",   english: "after / behind", reading: "うしろ",     romaji: "ushiro"    },
+      { kanji: "外",   english: "outside",        reading: "そと",       romaji: "soto"      },
+      { kanji: "北",   english: "north",          reading: "きた",       romaji: "kita"      },
+      { kanji: "南",   english: "south",          reading: "みなみ",     romaji: "minami"    },
+      { kanji: "東",   english: "east",           reading: "ひがし",     romaji: "higashi"   },
+      { kanji: "西",   english: "west",           reading: "にし",       romaji: "nishi"     },
+
+      // ── Objects & Concepts ────────────────────────────────────────────────
+      { kanji: "本",   english: "book / origin",  reading: "ほん",       romaji: "hon"       },
+      { kanji: "名",   english: "name",           reading: "な",         romaji: "na"        },
+
+      // ── School & Learning ─────────────────────────────────────────────────
+      { kanji: "生きる", english: "life / live", reading: "いきる",     romaji: "ikiru"     },
+      { kanji: "先",   english: "previous / ahead",reading: "さき",      romaji: "saki"      },
+      { kanji: "学ぶ",  english: "study / learn", reading: "まなぶ",   romaji: "manabu"    },
+      { kanji: "校",   english: "school",         reading: "こう",       romaji: "kou"       },
+
+      // ── Verbs ─────────────────────────────────────────────────────────────
+      { kanji: "見る", english: "see / look",  reading: "みる",       romaji: "miru"      },
+      { kanji: "聞く", english: "hear / listen",reading: "きく",      romaji: "kiku"      },
+      { kanji: "読む", english: "read",        reading: "よむ",       romaji: "yomu"      },
+      { kanji: "書く", english: "write",       reading: "かく",       romaji: "kaku"      },
+      { kanji: "話す", english: "speak / talk",reading: "はなす",     romaji: "hanasu"    },
+      { kanji: "言う", english: "say",         reading: "いう",       romaji: "iu"        },
+      { kanji: "語る", english: "narrate",     reading: "かたる",     romaji: "kataru"    },
+      { kanji: "食べる",english: "eat",        reading: "たべる",     romaji: "taberu"    },
+      { kanji: "飲む", english: "drink",       reading: "のむ",       romaji: "nomu"      },
+      { kanji: "入る", english: "enter",       reading: "はいる",     romaji: "hairu"     },
+      { kanji: "出る", english: "exit / go out",reading: "でる",      romaji: "deru"      },
+      { kanji: "行く", english: "go",          reading: "いく",       romaji: "iku"       },
+      { kanji: "来る", english: "come",        reading: "くる",       romaji: "kuru"      },
+      { kanji: "休む", english: "rest",        reading: "やすむ",     romaji: "yasumu"    },
+      { kanji: "立つ", english: "stand",       reading: "たつ",       romaji: "tatsu"     },
+
+      // ── Adjectives ────────────────────────────────────────────────────────
+      { kanji: "白",   english: "white",          reading: "しろ",       romaji: "shiro"     },
+      { kanji: "長い",  english: "long",           reading: "ながい",     romaji: "nagai"     },
+      { kanji: "高い",  english: "high / expensive",reading: "たかい",    romaji: "takai"     },
+      { kanji: "安い",  english: "cheap / safe",   reading: "やすい",     romaji: "yasui"     },
+      { kanji: "新しい", english: "new",            reading: "あたらしい", romaji: "atarashii" },
+
+      // ── Question word ─────────────────────────────────────────────────────
+      { kanji: "何",   english: "what",           reading: "なに",       romaji: "nani"      },
+    ];
+
+    const N5_TOPICS = [
+      { name: "Numbers",     sample: "五",  keys: ["一","二","三","四","五","六","七","八","九","十","百","千","万","円"] },
+      { name: "Time",        sample: "月",  keys: ["日","月","火","水","木","金","土","年"] },
+      { name: "Nature",      sample: "山",  keys: ["山","川","田","天","気","雨","花"] },
+      { name: "People",      sample: "人",  keys: ["人","口","目","耳","手","足","力","男","女","子"] },
+      { name: "Directions",  sample: "東",  keys: ["大きい","小さい","中","上","下","左","右","前","後","外","北","南","東","西"] },
+      { name: "Study",       sample: "学",  keys: ["本","名","生きる","先","学ぶ","校"] },
+      { name: "Verbs",       sample: "食べる", keys: ["見る","聞く","読む","書く","話す","言う","語る","食べる","飲む","入る","出る","行く","来る","休む","立つ"] },
+      { name: "Adjectives",  sample: "新",  keys: ["白","長い","高い","安い","新しい","何"] },
+    ];
+
+
+    // ─────────────────────────────────────────────
+    // N4 DECK  —  a curated subset of common N4 kanji (accurate readings).
+    // These are everyday-use kanji that pair well with the N5 set.
+    // ─────────────────────────────────────────────
+    const N4_DECK = [
+      // ── Time ──
+      { kanji: "朝", english: "morning", reading: "あさ", romaji: "asa" },
+      { kanji: "昼", english: "noon / daytime", reading: "ひる", romaji: "hiru" },
+      { kanji: "夜", english: "night", reading: "よる", romaji: "yoru" },
+      { kanji: "夕", english: "evening", reading: "ゆう", romaji: "yuu" },
+      { kanji: "曜", english: "weekday", reading: "よう", romaji: "you" },
+      { kanji: "週", english: "week", reading: "しゅう", romaji: "shuu" },
+      { kanji: "春", english: "spring", reading: "はる", romaji: "haru" },
+      { kanji: "夏", english: "summer", reading: "なつ", romaji: "natsu" },
+      { kanji: "秋", english: "autumn", reading: "あき", romaji: "aki" },
+      { kanji: "冬", english: "winter", reading: "ふゆ", romaji: "fuyu" },
+      { kanji: "世", english: "generation / world", reading: "せ", romaji: "se" },
+      { kanji: "代", english: "era / substitute", reading: "だい", romaji: "dai" },
+      // ── People ──
+      { kanji: "兄", english: "older brother", reading: "あに", romaji: "ani" },
+      { kanji: "弟", english: "younger brother", reading: "おとうと", romaji: "otouto" },
+      { kanji: "姉", english: "older sister", reading: "あね", romaji: "ane" },
+      { kanji: "妹", english: "younger sister", reading: "いもうと", romaji: "imouto" },
+      { kanji: "親", english: "parent", reading: "おや", romaji: "oya" },
+      { kanji: "家", english: "house / home", reading: "いえ", romaji: "ie" },
+      { kanji: "友", english: "friend", reading: "とも", romaji: "tomo" },
+      { kanji: "主", english: "master / main", reading: "ぬし", romaji: "nushi" },
+      { kanji: "員", english: "member / staff", reading: "いん", romaji: "in" },
+      { kanji: "客", english: "guest / customer", reading: "きゃく", romaji: "kyaku" },
+      { kanji: "者", english: "person", reading: "もの", romaji: "mono" },
+      { kanji: "民", english: "people / nation", reading: "みん", romaji: "min" },
+      { kanji: "自", english: "self", reading: "じ", romaji: "ji" },
+      // ── Body ──
+      { kanji: "顔", english: "face", reading: "かお", romaji: "kao" },
+      { kanji: "頭", english: "head", reading: "あたま", romaji: "atama" },
+      { kanji: "体", english: "body", reading: "からだ", romaji: "karada" },
+      { kanji: "心", english: "heart / mind", reading: "こころ", romaji: "kokoro" },
+      { kanji: "病", english: "illness", reading: "びょう", romaji: "byou" },
+      { kanji: "医", english: "doctor / medicine", reading: "い", romaji: "i" },
+      { kanji: "死", english: "death", reading: "し", romaji: "shi" },
+      { kanji: "血", english: "blood", reading: "ち", romaji: "chi" },
+      { kanji: "色", english: "color", reading: "いろ", romaji: "iro" },
+      { kanji: "味", english: "flavor / taste", reading: "あじ", romaji: "aji" },
+      { kanji: "声", english: "voice", reading: "こえ", romaji: "koe" },
+      { kanji: "肉", english: "meat", reading: "にく", romaji: "niku" },
+      // ── Places ──
+      { kanji: "町", english: "town", reading: "まち", romaji: "machi" },
+      { kanji: "村", english: "village", reading: "むら", romaji: "mura" },
+      { kanji: "市", english: "city", reading: "し", romaji: "shi" },
+      { kanji: "国", english: "country", reading: "くに", romaji: "kuni" },
+      { kanji: "道", english: "road / way", reading: "みち", romaji: "michi" },
+      { kanji: "駅", english: "station", reading: "えき", romaji: "eki" },
+      { kanji: "店", english: "shop / store", reading: "みせ", romaji: "mise" },
+      { kanji: "場", english: "place", reading: "ば", romaji: "ba" },
+      { kanji: "地", english: "ground / land", reading: "ち", romaji: "chi" },
+      { kanji: "図", english: "map / diagram", reading: "ず", romaji: "zu" },
+      { kanji: "界", english: "world / boundary", reading: "かい", romaji: "kai" },
+      { kanji: "室", english: "room", reading: "しつ", romaji: "shitsu" },
+      { kanji: "院", english: "institution", reading: "いん", romaji: "in" },
+      { kanji: "館", english: "building / hall", reading: "かん", romaji: "kan" },
+      { kanji: "京", english: "capital", reading: "きょう", romaji: "kyou" },
+      { kanji: "島", english: "island", reading: "しま", romaji: "shima" },
+      { kanji: "港", english: "harbor / port", reading: "みなと", romaji: "minato" },
+      { kanji: "橋", english: "bridge", reading: "はし", romaji: "hashi" },
+      { kanji: "公", english: "public", reading: "こう", romaji: "kou" },
+      { kanji: "園", english: "garden / park", reading: "えん", romaji: "en" },
+      // ── Movement ──
+      { kanji: "持つ", english: "hold / carry", reading: "もつ", romaji: "motsu" },
+      { kanji: "待つ", english: "wait", reading: "まつ", romaji: "matsu" },
+      { kanji: "走る", english: "run", reading: "はしる", romaji: "hashiru" },
+      { kanji: "歩く", english: "walk", reading: "あるく", romaji: "aruku" },
+      { kanji: "動く", english: "move", reading: "うごく", romaji: "ugoku" },
+      { kanji: "運ぶ", english: "carry / transport", reading: "はこぶ", romaji: "hakobu" },
+      { kanji: "送る", english: "send", reading: "おくる", romaji: "okuru" },
+      { kanji: "乗る", english: "ride", reading: "のる", romaji: "noru" },
+      { kanji: "着る", english: "wear", reading: "きる", romaji: "kiru" },
+      { kanji: "止まる", english: "stop", reading: "とまる", romaji: "tomaru" },
+      { kanji: "通る", english: "pass through", reading: "とおる", romaji: "tooru" },
+      { kanji: "帰る", english: "return home", reading: "かえる", romaji: "kaeru" },
+      { kanji: "起きる", english: "wake / get up", reading: "おきる", romaji: "okiru" },
+      { kanji: "飛ぶ", english: "fly", reading: "とぶ", romaji: "tobu" },
+      { kanji: "回る", english: "turn / go around", reading: "まわる", romaji: "mawaru" },
+      // ── Actions ──
+      { kanji: "使う", english: "use", reading: "つかう", romaji: "tsukau" },
+      { kanji: "働く", english: "work", reading: "はたらく", romaji: "hataraku" },
+      { kanji: "考える", english: "think", reading: "かんがえる", romaji: "kangaeru" },
+      { kanji: "知る", english: "know", reading: "しる", romaji: "shiru" },
+      { kanji: "売る", english: "sell", reading: "うる", romaji: "uru" },
+      { kanji: "買う", english: "buy", reading: "かう", romaji: "kau" },
+      { kanji: "始める", english: "begin", reading: "はじめる", romaji: "hajimeru" },
+      { kanji: "終わる", english: "end / finish", reading: "おわる", romaji: "owaru" },
+      { kanji: "教える", english: "teach", reading: "おしえる", romaji: "oshieru" },
+      { kanji: "習う", english: "learn", reading: "ならう", romaji: "narau" },
+      { kanji: "借りる", english: "borrow", reading: "かりる", romaji: "kariru" },
+      { kanji: "貸す", english: "lend", reading: "かす", romaji: "kasu" },
+      { kanji: "作る", english: "make", reading: "つくる", romaji: "tsukuru" },
+      { kanji: "洗う", english: "wash", reading: "あらう", romaji: "arau" },
+      { kanji: "開ける", english: "open", reading: "あける", romaji: "akeru" },
+      { kanji: "閉める", english: "close", reading: "しめる", romaji: "shimeru" },
+      { kanji: "建てる", english: "build", reading: "たてる", romaji: "tateru" },
+      { kanji: "集める", english: "collect / gather", reading: "あつめる", romaji: "atsumeru" },
+      { kanji: "決める", english: "decide", reading: "きめる", romaji: "kimeru" },
+      { kanji: "答える", english: "answer", reading: "こたえる", romaji: "kotaeru" },
+      { kanji: "写す", english: "copy", reading: "うつす", romaji: "utsusu" },
+      { kanji: "計る", english: "measure", reading: "はかる", romaji: "hakaru" },
+      // ── Adjectives ──
+      { kanji: "明るい", english: "bright", reading: "あかるい", romaji: "akarui" },
+      { kanji: "暗い", english: "dark", reading: "くらい", romaji: "kurai" },
+      { kanji: "強い", english: "strong", reading: "つよい", romaji: "tsuyoi" },
+      { kanji: "弱い", english: "weak", reading: "よわい", romaji: "yowai" },
+      { kanji: "重い", english: "heavy", reading: "おもい", romaji: "omoi" },
+      { kanji: "軽い", english: "light (weight)", reading: "かるい", romaji: "karui" },
+      { kanji: "近い", english: "near / close", reading: "ちかい", romaji: "chikai" },
+      { kanji: "遠い", english: "far", reading: "とおい", romaji: "tooi" },
+      { kanji: "広い", english: "wide / spacious", reading: "ひろい", romaji: "hiroi" },
+      { kanji: "狭い", english: "narrow", reading: "せまい", romaji: "semai" },
+      { kanji: "早い", english: "early / fast", reading: "はやい", romaji: "hayai" },
+      { kanji: "遅い", english: "late / slow", reading: "おそい", romaji: "osoi" },
+      { kanji: "深い", english: "deep", reading: "ふかい", romaji: "fukai" },
+      { kanji: "正しい", english: "correct", reading: "ただしい", romaji: "tadashii" },
+      { kanji: "同じ", english: "same", reading: "おなじ", romaji: "onaji" },
+      { kanji: "多い", english: "many", reading: "おおい", romaji: "ooi" },
+      { kanji: "少ない", english: "few", reading: "すくない", romaji: "sukunai" },
+      { kanji: "古い", english: "old (things)", reading: "ふるい", romaji: "furui" },
+      { kanji: "若い", english: "young", reading: "わかい", romaji: "wakai" },
+      { kanji: "楽しい", english: "fun / enjoyable", reading: "たのしい", romaji: "tanoshii" },
+      { kanji: "悲しい", english: "sad", reading: "かなしい", romaji: "kanashii" },
+      // ── Nature ──
+      { kanji: "空", english: "sky / empty", reading: "そら", romaji: "sora" },
+      { kanji: "海", english: "sea / ocean", reading: "うみ", romaji: "umi" },
+      { kanji: "池", english: "pond", reading: "いけ", romaji: "ike" },
+      { kanji: "林", english: "woods / grove", reading: "はやし", romaji: "hayashi" },
+      { kanji: "森", english: "forest", reading: "もり", romaji: "mori" },
+      { kanji: "風", english: "wind", reading: "かぜ", romaji: "kaze" },
+      { kanji: "雪", english: "snow", reading: "ゆき", romaji: "yuki" },
+      { kanji: "星", english: "star", reading: "ほし", romaji: "hoshi" },
+      { kanji: "光", english: "light", reading: "ひかり", romaji: "hikari" },
+      { kanji: "音", english: "sound", reading: "おと", romaji: "oto" },
+      { kanji: "石", english: "stone", reading: "いし", romaji: "ishi" },
+      { kanji: "魚", english: "fish", reading: "さかな", romaji: "sakana" },
+      { kanji: "鳥", english: "bird", reading: "とり", romaji: "tori" },
+      { kanji: "犬", english: "dog", reading: "いぬ", romaji: "inu" },
+      { kanji: "馬", english: "horse", reading: "うま", romaji: "uma" },
+      { kanji: "米", english: "rice / America", reading: "こめ", romaji: "kome" },
+      { kanji: "茶", english: "tea", reading: "ちゃ", romaji: "cha" },
+      { kanji: "紙", english: "paper", reading: "かみ", romaji: "kami" },
+      { kanji: "糸", english: "thread", reading: "いと", romaji: "ito" },
+      { kanji: "毛", english: "hair / fur", reading: "け", romaji: "ke" },
+      // ── Study ──
+      { kanji: "文", english: "sentence / writing", reading: "ぶん", romaji: "bun" },
+      { kanji: "字", english: "character / letter", reading: "じ", romaji: "ji" },
+      { kanji: "英", english: "English / brilliant", reading: "えい", romaji: "ei" },
+      { kanji: "数", english: "number", reading: "かず", romaji: "kazu" },
+      { kanji: "計", english: "plan / total", reading: "けい", romaji: "kei" },
+      { kanji: "意", english: "mind / meaning", reading: "い", romaji: "i" },
+      { kanji: "題", english: "topic / title", reading: "だい", romaji: "dai" },
+      { kanji: "問", english: "question", reading: "とい", romaji: "toi" },
+      { kanji: "注", english: "note / pour", reading: "ちゅう", romaji: "chuu" },
+      { kanji: "研", english: "polish / research", reading: "けん", romaji: "ken" },
+      { kanji: "究", english: "research / investigate", reading: "きゅう", romaji: "kyuu" },
+      { kanji: "験", english: "test / verify", reading: "けん", romaji: "ken" },
+      { kanji: "用", english: "use / business", reading: "よう", romaji: "you" },
+      { kanji: "事", english: "matter / thing", reading: "こと", romaji: "koto" },
+      { kanji: "仕", english: "serve / do", reading: "し", romaji: "shi" },
+      { kanji: "記", english: "record / note", reading: "き", romaji: "ki" },
+      { kanji: "質", english: "quality / nature", reading: "しつ", romaji: "shitsu" },
+      { kanji: "有", english: "exist / have", reading: "ゆう", romaji: "yuu" },
+      { kanji: "無", english: "nothing / without", reading: "む", romaji: "mu" },
+      { kanji: "真", english: "true / real", reading: "ま", romaji: "ma" },
+      { kanji: "法", english: "law / method", reading: "ほう", romaji: "hou" },
+      { kanji: "理", english: "reason / logic", reading: "り", romaji: "ri" },
+      { kanji: "料", english: "fee / materials", reading: "りょう", romaji: "ryou" },
+      { kanji: "品", english: "goods / article", reading: "しな", romaji: "shina" },
+      { kanji: "物", english: "thing / object", reading: "もの", romaji: "mono" },
+      { kanji: "不", english: "un- / not", reading: "ふ", romaji: "fu" },
+      { kanji: "特", english: "special", reading: "とく", romaji: "toku" },
+      { kanji: "急", english: "hurry / sudden", reading: "きゅう", romaji: "kyuu" },
+      { kanji: "去", english: "past / leave", reading: "きょ", romaji: "kyo" },
+    ];
+
+    const N4_TOPICS = [
+      { name: "Time", sample: "朝", keys: ["朝","昼","夜","夕","曜","週","春","夏","秋","冬","世","代"] },
+      { name: "People", sample: "親", keys: ["兄","弟","姉","妹","親","家","友","主","員","客","者","民","自"] },
+      { name: "Body", sample: "顔", keys: ["顔","頭","体","心","病","医","死","血","色","味","声","肉"] },
+      { name: "Places", sample: "駅", keys: ["町","村","市","国","道","駅","店","場","地","図","界","室","院","館","京","島","港","橋","公","園"] },
+      { name: "Movement", sample: "走る", keys: ["持つ","待つ","走る","歩く","動く","運ぶ","送る","乗る","着る","止まる","通る","帰る","起きる","飛ぶ","回る"] },
+      { name: "Actions", sample: "教える", keys: ["使う","働く","考える","知る","売る","買う","始める","終わる","教える","習う","借りる","貸す","作る","洗う","開ける","閉める","建てる","集める","決める","答える","写す","計る"] },
+      { name: "Adjectives", sample: "強い", keys: ["明るい","暗い","強い","弱い","重い","軽い","近い","遠い","広い","狭い","早い","遅い","深い","正しい","同じ","多い","少ない","古い","若い","楽しい","悲しい"] },
+      { name: "Nature", sample: "海", keys: ["空","海","池","林","森","風","雪","星","光","音","石","魚","鳥","犬","馬","米","茶","紙","糸","毛"] },
+      { name: "Study", sample: "文", keys: ["文","字","英","数","計","意","題","問","注","研","究","験","用","事","仕","記","質","有","無","真","法","理","料","品","物","不","特","急","去"] },
+    ];
+
+
+    // ─────────────────────────────────────────────
+    // LEVEL REGISTRY  —  maps level name to its deck + topics.
+    // ─────────────────────────────────────────────
+    const LEVELS = {
+      N5: { deck: N5_DECK, topics: N5_TOPICS },
+      N4: { deck: N4_DECK, topics: N4_TOPICS },
+    };
+
+    // Active pointers — set by setActiveLevel(). All game code reads these.
+    let deck   = N5_DECK;
+    let topics = N5_TOPICS;
+
+    // ─────────────────────────────────────────────
+    // Enrich EVERY level's deck with an `englishAlts` array (accepted
+    // answers), derived by splitting the english field on " / ".
+    // Meanings now omit the "to " verb prefix (e.g. "see"), but we still
+    // accept the "to ..." form (e.g. "to see") so either typing works.
+    // ─────────────────────────────────────────────
+    Object.values(LEVELS).forEach(function(level) {
+      level.deck.forEach(function(w) {
+        const parts = w.english.split('/').map(p => p.trim().toLowerCase());
+        const withTo = parts.map(p => 'to ' + p); // also accept "to see", etc.
+        w.englishAlts = [...new Set([w.english.toLowerCase(), ...parts, ...withTo])];
+      });
+    });
+
+    // ─────────────────────────────────────────────
+    // SET ACTIVE LEVEL  —  point deck/topics at the chosen level and
+    // rebuild the topic grid + study list for it.
+    // ─────────────────────────────────────────────
+    function setActiveLevel(level) {
+      deck   = LEVELS[level].deck;
+      topics = LEVELS[level].topics;
+      buildTopicGrid();
+      buildAllCardsButton();
+      document.getElementById('study-list').innerHTML = ''; // force study rebuild
+    }
+
+
+    // ─────────────────────────────────────────────
+    // GAME STATE  —  these variables track what's happening right now.
+    // ─────────────────────────────────────────────
+    let shuffledDeck  = [];   // a shuffled copy of the chosen topic's cards
+    let currentIndex  = 0;    // which word we're on (0 = first)
+    let currentPhase  = 1;    // 1 = recognition, 2 = reading quiz
+    let score         = 0;    // how many Phase 2 answers were correct
+    let totalAsked    = 0;    // number of cards shown × 2 — each card is worth
+                              // 2 points (1 meaning + 1 reading), so the max
+                              // possible score is always totalAsked
+    let currentTopic  = null; // the topic object the player chose
+    let uniqueTopicCount = 0; // number of distinct cards in the chosen topic
+    let currentLevel  = 'N5'; // which JLPT level is active (only N5 for now)
+    let phaseMode     = 'both'; // 'both' | 'meaning' | 'reading' for current game
+    let wordToSpeak   = null; // pinned word for the sound button —
+                              // set when an answer is revealed so the
+                              // splice can't change what gets spoken
+
+    // ─────────────────────────────────────────────
+    // CUSTOM DECKS  —  player-created decks. Each deck:
+    //   { id, name, phaseMode: 'both'|'meaning'|'reading', cards: [
+    //       { kanji, english, reading, romaji, englishAlts }
+    //   ] }
+    // A custom deck behaves like a single-topic "level" when played.
+    // ─────────────────────────────────────────────
+    let customDecks = [];
+    let editingDeckId = null; // which custom deck is open in the editor
+
+    // ─────────────────────────────────────────────
+    // TIMER STATE
+    // ─────────────────────────────────────────────
+    let timerInterval = null;  // setInterval handle
+    let timerSeconds  = 0;     // elapsed seconds this game
+
+    // ─────────────────────────────────────────────
+    // PERSONAL BESTS  —  keyed by topic name.
+    // Each entry: { bestScore: n, bestTotal: n, bestTime: seconds }
+    // Stored in a plain object so it survives across topic changes
+    // within one browser session (resets on page refresh).
+    // ─────────────────────────────────────────────
+    let personalBests = {};   // e.g. { "Nature": { bestScore:7, bestTotal:14, bestTime:83 } }
+
+    // Per-card mastery for the level progress bars, keyed "LEVEL:kanji".
+    // Value is 'green' (cleared with no mistake) or 'yellow' (cleared but
+    // missed at least once). Reflects the MOST RECENT clear of that card.
+    let cardStatus = {};
+
+    // Kanji missed during the CURRENT session (reset each game). Used to
+    // decide green vs yellow when a card is finally cleared.
+    let sessionMistakes = new Set();
+
+    // ─────────────────────────────────────────────
+    // GLOBAL STATS  —  totals across all sessions this visit
+    // ─────────────────────────────────────────────
+    let globalTotalScore   = 0;  // sum of all scores earned
+    let globalTotalAsked   = 0;  // sum of all totalAsked values
+    let globalSessions     = 0;  // number of completed sessions
+
+    // ─────────────────────────────────────────────
+    // PROGRESS TRACKING  —  per-level "seen" and "mistake" kanji.
+    //
+    // These are keyed by level (e.g. "N5", "N4", "custom:deck_123") so the
+    // "Cards seen" and "Mistakes" topics on one level never include kanji
+    // from another. Each value is a Set, which ignores duplicate adds.
+    // ─────────────────────────────────────────────
+    let seenByLevel    = {}; // { "N5": Set, "N4": Set, ... }
+    let mistakeByLevel = {}; // same shape
+
+    // Accessors that lazily create the Set for the active level.
+    function seenSet() {
+      if (!seenByLevel[currentLevel]) seenByLevel[currentLevel] = new Set();
+      return seenByLevel[currentLevel];
+    }
+    function mistakeSet() {
+      if (!mistakeByLevel[currentLevel]) mistakeByLevel[currentLevel] = new Set();
+      return mistakeByLevel[currentLevel];
+    }
+
+
+    // ─────────────────────────────────────────────
+    // TIMER HELPERS
+    // ─────────────────────────────────────────────
+    function formatTime(secs) {
+      // Convert raw seconds into "m:ss" format e.g. 83 → "1:23"
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function startTimer() {
+      timerSeconds = 0;
+      clearInterval(timerInterval); // safety: clear any stale interval
+      const el = document.getElementById('timer-display');
+      el.textContent = '0:00';
+      el.className   = '';
+
+      timerInterval = setInterval(function() {
+        timerSeconds++;
+        el.textContent = formatTime(timerSeconds);
+        // Colour shifts to hint the player at longer times
+        if      (timerSeconds >= 300) el.className = 'timer-hot';   // 5+ min
+        else if (timerSeconds >= 120) el.className = 'timer-warn';  // 2+ min
+        else                          el.className = '';
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // HELPER: shuffle an array randomly (Fisher-Yates algorithm)
+    // We make a *copy* so the original deck order is never changed.
+    // ─────────────────────────────────────────────
+    function shuffle(array) {
+      const copy = [...array]; // spread makes a new copy
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]]; // swap
+      }
+      return copy;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // HELPER: show one screen, hide all others.
+    // ─────────────────────────────────────────────
+    function showScreen(id) {
+      // Get every element with class "screen" and hide each one
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      // Then show just the one we want
+      document.getElementById(id).classList.add('active');
+    }
+
+
+    // ─────────────────────────────────────────────
+    // UPDATE GLOBAL STATS BANNER  —  shown at top of topic picker
+    // ─────────────────────────────────────────────
+    function updateGlobalStats() {
+      document.getElementById('gs-sessions').textContent = globalSessions;
+      document.getElementById('gs-score').textContent    = globalTotalScore + ' / ' + globalTotalAsked;
+      const acc = globalTotalAsked > 0
+        ? Math.round((globalTotalScore / globalTotalAsked) * 100) + '%'
+        : '—';
+      document.getElementById('gs-accuracy').textContent = acc;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // DYNAMIC TOPIC CARDS  —  "Cards seen" and "Mistakes"
+    //
+    // These two cards appear at the top of the topic picker and
+    // are rebuilt every time refreshDynamicTopics() is called.
+    // They are locked (greyed out) until they have at least 1 card.
+    // ─────────────────────────────────────────────
+    function refreshDynamicTopics() {
+      const grid = document.getElementById('dynamic-topic-grid');
+      grid.innerHTML = '';
+
+      // Helper: build one dynamic topic card and append it to the grid
+      function makeDynamicCard(label, sample, kanjiSet, cssClass) {
+        const count = kanjiSet.size;
+        const btn   = document.createElement('button');
+        btn.className = 'topic-card ' + cssClass + (count === 0 ? ' locked' : '');
+        btn.innerHTML =
+          '<div class="topic-kanji">' + (count > 0 ? sample : '？') + '</div>' +
+          '<div class="topic-name">' + label + '</div>' +
+          '<div class="topic-count">' + count + ' card' + (count !== 1 ? 's' : '') + '</div>';
+
+        if (count > 0) {
+          btn.onclick = function() {
+            // Build a synthetic topic object on the fly from the Set contents.
+            // We look up the full card objects from the master deck by kanji key.
+            const cards = deck.filter(w => kanjiSet.has(w.kanji));
+            // startGame() normally takes a topic object with .name and .keys —
+            // we pass a lightweight stand-in with the same shape.
+            startGame({ name: label, sample: sample, keys: [...kanjiSet], _cards: cards });
+          };
+        }
+
+        grid.appendChild(btn);
+      }
+
+      // Use the CURRENT level's seen/mistake sets so the dynamic topics
+      // only ever reflect this level (or custom deck), never others.
+      makeDynamicCard('Cards seen',  '見る', seenSet(),    'seen-card');
+      makeDynamicCard('Mistakes',    '間違い', mistakeSet(), 'mistake-card');
+    }
+
+
+    // ─────────────────────────────────────────────
+    // BUILD TOPIC GRID  —  called once on page load.
+    // Creates one .topic-card button per topic and injects them
+    // into the #topic-grid div in the HTML.
+    // ─────────────────────────────────────────────
+    function buildTopicGrid() {
+      const grid = document.getElementById('topic-grid');
+      grid.innerHTML = ''; // clear in case we rebuilt
+
+      topics.forEach(function(topic) {
+        // Count how many deck cards belong to this topic
+        const count = deck.filter(w => topic.keys.includes(w.kanji)).length;
+
+        // Build the card element entirely in JS
+        const btn = document.createElement('button');
+        btn.className = 'topic-card';
+        btn.innerHTML =
+          '<div class="topic-kanji">' + topic.sample + '</div>' +
+          '<div class="topic-name">'  + topic.name   + '</div>' +
+          '<div class="topic-count">' + count + ' cards</div>';
+
+        // When clicked, start a game with this topic's cards
+        btn.onclick = function() { startGame(topic); };
+
+        grid.appendChild(btn);
+      });
+    }
+
+
+    // ─────────────────────────────────────────────
+    // BUILD ALL-CARDS BUTTON  —  single card spanning the full grid width
+    // that starts a game with every card in the deck.
+    // ─────────────────────────────────────────────
+    function buildAllCardsButton() {
+      const grid = document.getElementById('all-cards-grid');
+      grid.innerHTML = '';
+
+      const btn = document.createElement('button');
+      // span both columns so it sits centred below the regular grid
+      btn.className = 'topic-card all-card';
+      btn.style.gridColumn = '1 / -1'; // stretch across all columns
+      btn.innerHTML =
+        '<div class="topic-kanji">全</div>' +
+        '<div class="topic-name">All cards</div>' +
+        '<div class="topic-count">' + deck.length + ' cards</div>';
+
+      btn.onclick = function() {
+        startGame({ name: 'All cards', sample: '全', keys: deck.map(w => w.kanji) });
+      };
+
+      grid.appendChild(btn);
+    }
+
+
+    // ─────────────────────────────────────────────
+    // GO TO TOPIC PICKER  —  called from the end screen.
+    // Hides score bar and returns to the topic picker.
+    // ─────────────────────────────────────────────
+    function goToTopicPicker() {
+      document.getElementById('score-bar').classList.remove('active');
+      document.getElementById('progress-wrap').classList.remove('active');
+
+      // If we just played a custom deck, go back to the deck list. Otherwise
+      // return to the built-in topic picker for the current JLPT level.
+      if (typeof currentLevel === 'string' && currentLevel.indexOf('custom:') === 0) {
+        showDeckList();
+      } else {
+        renderMasteryBar(); // reflect any cards cleared in the session
+        showScreen('topic-screen');
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // START GAME  —  called when the player picks a topic.
+    // topic  : the topic object from the topics array
+    // ─────────────────────────────────────────────
+    function startGame(topic) {
+      currentTopic = topic;
+      // Phase mode: built-in topics are always 'both'; custom topics may carry
+      // their own phaseMode ('both' | 'meaning' | 'reading').
+      phaseMode = topic.phaseMode || 'both';
+
+      // If this is a dynamic topic (seen / mistakes), the cards were
+      // pre-built when the button was clicked and stored in topic._cards.
+      // Otherwise filter the master deck by the topic's kanji keys.
+      const topicCards = topic._cards
+        ? topic._cards
+        : deck.filter(w => topic.keys.includes(w.kanji));
+
+      shuffledDeck  = shuffle(topicCards); // fresh shuffle of this topic's cards
+      uniqueTopicCount = new Set(topicCards.map(w => w.kanji)).size; // distinct cards
+      sessionMistakes = new Set(); // fresh mistake tracking for this session
+      currentIndex  = 0;
+      currentPhase  = 1;
+      score         = 0;
+      totalAsked    = 0;
+      // Reset score bar display
+      document.getElementById('score-display').textContent = '0 / 0';
+
+      // Show previous best time/score beneath the live values — but only if
+      // the player has completed this topic before (a personal best exists).
+      const prevBest = personalBests[currentLevel + ':' + topic.name];
+      const prevTimeEl  = document.getElementById('prev-time');
+      const prevScoreEl = document.getElementById('prev-score');
+      if (prevBest) {
+        prevTimeEl.textContent  = 'best ' + formatTime(prevBest.bestTime);
+        prevScoreEl.textContent = 'best ' + prevBest.bestScore + ' / ' + prevBest.bestTotal;
+      } else {
+        prevTimeEl.textContent  = '';
+        prevScoreEl.textContent = '';
+      }
+
+      // Show the score bar and progress line
+      document.getElementById('score-bar').classList.add('active');
+      document.getElementById('progress-wrap').classList.add('active');
+
+      // Start the timer
+      startTimer();
+
+      showScreen('game-screen');
+      renderCard();
+    }
+
+
+    // ─────────────────────────────────────────────
+    // RENDER CARD  —  fills the card with the current word and phase
+    // ─────────────────────────────────────────────
+    function renderCard() {
+      const word = shuffledDeck[currentIndex];
+
+      // Reset the card border colour (remove any flash-correct / flash-wrong)
+      const card = document.getElementById('card');
+      card.classList.remove('flash-correct', 'flash-wrong');
+
+      // Restart the slide-in animation by briefly removing and re-adding it
+      card.style.animation = 'none';
+      requestAnimationFrame(() => { card.style.animation = ''; });
+
+      // Fill in the kanji and English text
+      document.getElementById('kanji-display').textContent   = word.kanji;
+      document.getElementById('english-display').textContent = word.english;
+
+      // Update score bar — show how many UNIQUE cards are left to clear.
+      // A card counts as "remaining" if its kanji still appears at or after
+      // the current position (duplicates from mistakes don't inflate this).
+      const remainingUnique = new Set(
+        shuffledDeck.slice(currentIndex).map(w => w.kanji)
+      ).size;
+      document.getElementById('word-counter').textContent =
+        remainingUnique + ' card' + (remainingUnique === 1 ? '' : 's') + ' left';
+      updateScoreBar(); // show "score / totalAsked", never the bare number
+
+      // Progress bar: how many of the topic's unique cards are cleared.
+      const clearedUnique = uniqueTopicCount - remainingUnique;
+      const pct = uniqueTopicCount > 0 ? (clearedUnique / uniqueTopicCount) * 100 : 0;
+      document.getElementById('progress-fill').style.width = pct + '%';
+
+      // Always reset shared state when rendering any phase
+      document.getElementById('card').classList.remove('flash-correct', 'flash-wrong');
+      window.speechSynthesis.cancel();
+      wordToSpeak = null;
+
+      // Hide BOTH advance buttons up front. Each phase re-shows its own only
+      // after its answer is checked. Without this, a stale visible button
+      // could be triggered by the global Enter handler and skip/loop cards.
+      document.getElementById('meaning-next-btn').style.display = 'none';
+      document.getElementById('next-btn').style.display = 'none';
+
+      // Decide what THIS phase asks:
+      //   phaseMode 'both'    : phase 1 = meaning, phase 2 = reading
+      //   phaseMode 'meaning' : single phase asking the meaning
+      //   phaseMode 'reading' : single phase asking the reading
+      const askMeaning = (phaseMode === 'both' && currentPhase === 1) || phaseMode === 'meaning';
+
+      if (askMeaning) {
+        // ── Meaning phase: show kanji only, hide the English meaning ──────
+        document.getElementById('phase-label').textContent =
+          phaseMode === 'both' ? 'Phase 1 · Meaning' : 'Meaning';
+        document.getElementById('english-display').style.display = 'none';
+        document.getElementById('phase1-content').style.display = 'block';
+        document.getElementById('phase2-content').style.display = 'none';
+
+        // Reset meaning input
+        document.getElementById('meaning-input').value        = '';
+        document.getElementById('feedback').textContent       = '';
+        document.getElementById('feedback').className         = '';
+        document.getElementById('meaning-input').disabled     = false;
+        document.getElementById('meaning-next-btn').style.display   = 'none';
+        document.getElementById('meaning-next-btn').textContent     = 'Next — try the reading →';
+        document.getElementById('meaning-next-btn').onclick         = proceedToReading;
+        document.querySelector('#meaning-area button').disabled      = false;
+
+        // Count this card's point capacity. Only do this ONCE per card, when
+        // its first phase renders — for 'both' that's phase 1, for single
+        // modes it's the only phase. 2 points for 'both', 1 for single.
+        if (currentPhase === 1) {
+          totalAsked += (phaseMode === 'both') ? 2 : 1;
+        }
+
+        // Record as seen
+        seenSet().add(word.kanji);
+        refreshDynamicTopics();
+        updateScoreBar();
+
+        // Focus and wire up Enter key
+        setTimeout(() => document.getElementById('meaning-input').focus(), 50);
+        document.getElementById('meaning-input').onkeydown = function(e) {
+          if (e.key === 'Enter') { e.stopPropagation(); checkMeaning(); }
+        };
+
+      } else {
+        // ── Reading phase ─────────────────────────────────────────────────
+        // For 'both', show the English meaning (already confirmed in phase 1).
+        // For single 'reading' mode, the meaning isn't part of the quiz so we
+        // keep it hidden to avoid giving the answer away contextually.
+        if (phaseMode === 'both') {
+          document.getElementById('phase-label').textContent = 'Phase 2 · Reading';
+          document.getElementById('english-display').style.display = 'block';
+        } else {
+          document.getElementById('phase-label').textContent = 'Reading';
+          document.getElementById('english-display').style.display = 'none';
+          // Single-phase reading: count capacity once, here.
+          totalAsked += 1;
+          seenSet().add(word.kanji);
+          refreshDynamicTopics();
+          updateScoreBar();
+        }
+        document.getElementById('phase1-content').style.display = 'none';
+        document.getElementById('phase2-content').style.display = 'block';
+
+        // Reset reading input
+        document.getElementById('answer-input').value         = '';
+        document.getElementById('feedback2').textContent      = '';
+        document.getElementById('feedback2').className        = '';
+        document.getElementById('answer-input').disabled      = false;
+        document.getElementById('next-btn').style.display     = 'none';
+        document.getElementById('next-btn').textContent       = 'Next word →';
+        document.querySelector('#answer-area button').disabled = false;
+
+        // Hide sound button until answer checked
+        document.getElementById('sound-btn').classList.remove('visible');
+
+        // Focus and wire up Enter key
+        setTimeout(() => document.getElementById('answer-input').focus(), 50);
+        document.getElementById('answer-input').onkeydown = function(e) {
+          if (e.key === 'Enter') { e.stopPropagation(); checkReading(); }
+        };
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // UPDATE SCORE BAR  —  called whenever score or totalAsked changes
+    // ─────────────────────────────────────────────
+    function updateScoreBar() {
+      document.getElementById('score-display').textContent = score + ' / ' + totalAsked;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // REINSERT CURRENT  —  moves the current card 3-8 positions ahead
+    // so the player sees it again soon. Returns the jump distance.
+    // ─────────────────────────────────────────────
+    function reinsertCurrent() {
+      // The current card stays where it is — nextWord() will advance past it
+      // normally. We insert ANOTHER copy of it further ahead so the player
+      // has to face it again before the deck runs out.
+      //
+      // Because we don't remove the current card, the indices of all the
+      // cards still ahead are unaffected, so nothing gets skipped.
+      const word      = shuffledDeck[currentIndex];
+      const remaining = shuffledDeck.length - currentIndex - 1; // cards still ahead
+
+      if (remaining === 0) {
+        // Last card — just append the repeat to the very end.
+        shuffledDeck.push(word);
+        return 1; // "coming back in 1 card"
+      }
+
+      // Pick a slot 3-8 positions ahead, clamped to the deck end.
+      const maxJump  = Math.min(8, remaining);
+      const minJump  = Math.min(3, remaining);
+      const jump     = Math.floor(Math.random() * (maxJump - minJump + 1)) + minJump;
+      shuffledDeck.splice(currentIndex + jump, 0, word);
+      return jump;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // MARK CLEARED  —  a card has been fully answered correctly. Record its
+    // mastery status (green if no mistake this session, else yellow) using
+    // most-recent semantics. Keyed by level so custom decks namespace cleanly.
+    // ─────────────────────────────────────────────
+    function markCleared(word) {
+      const statusKey = currentLevel + ':' + word.kanji;
+      cardStatus[statusKey] = sessionMistakes.has(word.kanji) ? 'yellow' : 'green';
+    }
+
+
+    // ─────────────────────────────────────────────
+    // CHECK MEANING  —  Phase 1 answer submission
+    // ─────────────────────────────────────────────
+    function checkMeaning() {
+      const word      = shuffledDeck[currentIndex];
+      const input     = document.getElementById('meaning-input');
+      const feedback  = document.getElementById('feedback');
+      const card      = document.getElementById('card');
+      const userAnswer = input.value.trim().toLowerCase();
+
+      if (!userAnswer) return;
+
+      // Accept any of the englishAlts (derived from the english field)
+      const isCorrect = word.englishAlts.includes(userAnswer);
+
+      // Lock the input and Check button
+      input.disabled = true;
+      document.querySelector('#meaning-area button').disabled = true;
+
+      if (isCorrect) {
+        score++;
+        feedback.textContent = '✓ Correct!';
+        feedback.className   = 'correct';
+        card.classList.add('flash-correct');
+
+        if (phaseMode === 'meaning') {
+          // Single-phase deck: this card is now fully cleared.
+          markCleared(word);
+          const isLast = currentIndex === shuffledDeck.length - 1;
+          document.getElementById('meaning-next-btn').textContent = isLast ? 'Finish →' : 'Next word →';
+          document.getElementById('meaning-next-btn').onclick     = nextWord;
+        } else {
+          // 'both' mode: proceed to the reading phase next.
+          document.getElementById('meaning-next-btn').textContent = 'Next — try the reading →';
+          document.getElementById('meaning-next-btn').onclick     = proceedToReading;
+        }
+      } else {
+        const jump = reinsertCurrent();
+        const comeBackMsg = jump > 0
+          ? ' (coming back in ' + jump + ' card' + (jump === 1 ? '' : 's') + ')'
+          : '';
+        feedback.textContent = '✗ It means: ' + word.english + comeBackMsg;
+        feedback.className   = 'wrong';
+        card.classList.add('flash-wrong');
+        mistakeSet().add(word.kanji);
+        sessionMistakes.add(word.kanji); // missed this session → will be yellow
+        refreshDynamicTopics();
+        document.getElementById('meaning-next-btn').textContent = 'Got it — next card →';
+        document.getElementById('meaning-next-btn').onclick     = nextWord;
+      }
+
+      updateScoreBar();
+      document.getElementById('meaning-next-btn').style.display = 'block';
+    }
+
+
+    // ─────────────────────────────────────────────
+    // PROCEED TO READING  —  after Phase 1 is resolved, move to Phase 2
+    // ─────────────────────────────────────────────
+    function proceedToReading() {
+      currentPhase = 2;
+      renderCard();
+    }
+
+
+    // ─────────────────────────────────────────────
+    // CHECK READING  —  Phase 2 answer submission
+    // ─────────────────────────────────────────────
+    function checkReading() {
+      const word      = shuffledDeck[currentIndex];
+      const input     = document.getElementById('answer-input');
+      const feedback  = document.getElementById('feedback2');
+      const card      = document.getElementById('card');
+      const userAnswer = input.value.trim().toLowerCase();
+
+      if (!userAnswer) return;
+
+      const isCorrect = userAnswer === word.reading || userAnswer === word.romaji;
+
+      // Lock input and Check button
+      input.disabled = true;
+      document.querySelector('#answer-area button').disabled = true;
+
+      if (isCorrect) {
+        score++;
+        feedback.textContent = '✓ Correct!';
+        feedback.className   = 'correct';
+        card.classList.add('flash-correct');
+        // This card is now fully cleared. Record its mastery status.
+        markCleared(word);
+        // If this is the last card in the deck, the next click ends the game.
+        const isLast = currentIndex === shuffledDeck.length - 1;
+        document.getElementById('next-btn').textContent = isLast ? 'Finish →' : 'Next word →';
+      } else {
+        const jump = reinsertCurrent();
+        const comeBackMsg = jump > 0
+          ? ' (coming back in ' + jump + ' card' + (jump === 1 ? '' : 's') + ')'
+          : '';
+        // Show romaji in parentheses only if the card has one (custom cards may not).
+        const romajiPart = word.romaji ? '  (' + word.romaji + ')' : '';
+        feedback.textContent = '✗ Not quite — it\'s  ' + word.reading + romajiPart + comeBackMsg;
+        feedback.className   = 'wrong';
+        card.classList.add('flash-wrong');
+        mistakeSet().add(word.kanji);
+        sessionMistakes.add(word.kanji); // missed this session → will be yellow
+        refreshDynamicTopics();
+        document.getElementById('next-btn').textContent = 'Got it — next card →';
+      }
+
+      updateScoreBar();
+
+      // Pin word for sound button
+      wordToSpeak = word;
+
+      // Show sound + next buttons
+      document.getElementById('sound-btn').classList.add('visible');
+      document.getElementById('next-btn').style.display = 'block';
+    }
+
+
+    // ─────────────────────────────────────────────
+    // NEXT WORD  —  move to the next card (or end the game)
+    // ─────────────────────────────────────────────
+    function nextWord() {
+      currentIndex++;
+
+      // Have we finished all the words?
+      if (currentIndex >= shuffledDeck.length) {
+        endGame();
+        return;
+      }
+
+      // Otherwise, start at phase 1 for the new word
+      currentPhase = 1;
+      renderCard();
+    }
+
+
+    // ─────────────────────────────────────────────
+    // END GAME  —  stop timer, record stats, show results
+    // ─────────────────────────────────────────────
+    function endGame() {
+      stopTimer();
+      const total     = totalAsked;
+      const elapsed   = timerSeconds;
+      const topicKey  = currentLevel + ':' + currentTopic.name;
+
+      // ── Update global stats ──────────────────────────────────────────
+      globalSessions++;
+      globalTotalScore += score;
+      globalTotalAsked += total;
+      updateGlobalStats();
+
+      // ── Personal best logic ──────────────────────────────────────────
+      // We track best score (highest points) and best time (fastest finish)
+      // separately so either can be a meaningful goal to beat.
+      const prev      = personalBests[topicKey];
+      const pct       = total > 0 ? score / total : 0;
+      const prevPct   = prev ? prev.bestScore / prev.bestTotal : -1;
+
+      let newBestScore = false;
+      let newBestTime  = false;
+
+      if (!prev) {
+        // First time completing this topic — just store the result
+        personalBests[topicKey] = { bestScore: score, bestTotal: total, bestTime: elapsed };
+      } else {
+        // Beat the score?
+        if (pct > prevPct || (pct === prevPct && score > prev.bestScore)) {
+          personalBests[topicKey].bestScore = score;
+          personalBests[topicKey].bestTotal = total;
+          newBestScore = true;
+        }
+        // Beat the time? (only counts on a perfect or same accuracy)
+        if (elapsed < prev.bestTime) {
+          personalBests[topicKey].bestTime = elapsed;
+          newBestTime = true;
+        }
+      }
+
+      // ── Build the personal-best strip ────────────────────────────────
+      const pb    = personalBests[topicKey];
+      const pbEl  = document.getElementById('personal-best');
+      const pbTxt = document.getElementById('pb-text');
+
+      if (prev) { // only show PB if this isn't the very first attempt
+        const scoreStr = pb.bestScore + ' / ' + pb.bestTotal +
+          ' (' + Math.round((pb.bestScore / pb.bestTotal) * 100) + '%)';
+        const timeStr  = formatTime(pb.bestTime);
+
+        if (newBestScore && newBestTime) {
+          pbTxt.innerHTML = '🏅 New best score <span class="pb-highlight">' + scoreStr + '</span> AND new best time <span class="pb-highlight">' + timeStr + '</span>!';
+        } else if (newBestScore) {
+          pbTxt.innerHTML = '🏅 New best score: <span class="pb-highlight">' + scoreStr + '</span> — best time to beat: <span class="pb-highlight">' + timeStr + '</span>';
+        } else if (newBestTime) {
+          pbTxt.innerHTML = '⚡ New best time: <span class="pb-highlight">' + timeStr + '</span> — best score to beat: <span class="pb-highlight">' + scoreStr + '</span>';
+        } else {
+          pbTxt.innerHTML = 'Best: <span class="pb-highlight">' + scoreStr + '</span> in <span class="pb-highlight">' + timeStr + '</span> — can you beat it?';
+        }
+        pbEl.style.display    = 'block';
+        pbEl.className        = (newBestScore || newBestTime) ? 'new-record' : '';
+      } else {
+        pbEl.style.display = 'none'; // first attempt — nothing to compare yet
+      }
+
+      // ── Hide score bar / progress ────────────────────────────────────
+      document.getElementById('score-bar').classList.remove('active');
+      document.getElementById('progress-wrap').classList.remove('active');
+
+      // ── Fill in the results ──────────────────────────────────────────
+      document.getElementById('end-topic-label').textContent =
+        currentTopic.name + '  ·  ' + uniqueTopicCount + ' unique cards';
+      document.getElementById('final-score').textContent = score + ' / ' + total;
+      document.getElementById('end-time').textContent    = formatTime(elapsed);
+
+      // Choose a message based on accuracy
+      let emoji, message;
+      if      (pct === 1)  { emoji = '🏆'; message = "Perfect score! You're a kanji master!"; }
+      else if (pct >= 0.8) { emoji = '🎉'; message = "Excellent! Almost perfect — keep it up!"; }
+      else if (pct >= 0.6) { emoji = '👍'; message = "Good work! Practice makes perfect."; }
+      else if (pct >= 0.4) { emoji = '📚'; message = "Keep studying — you're making progress!"; }
+      else                 { emoji = '💪'; message = "Don't give up! Try again to improve."; }
+
+      document.getElementById('end-emoji').textContent     = emoji;
+      document.getElementById('score-message').textContent = message;
+
+      // Persist progress automatically so stats + mastery survive a refresh.
+      saveProgress(true);
+
+      showScreen('end-screen');
+    }
+
+    // ─────────────────────────────────────────────
+    // GLOBAL ENTER KEY  —  lets the player advance with Enter instead of
+    // always clicking. The text inputs already handle Enter for the "Check"
+    // step; this covers the step AFTER an answer is checked, when the input
+    // is disabled and an advance button ("Next", "Finish", etc.) is showing.
+    // ─────────────────────────────────────────────
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+
+      // Only act while the game screen is visible
+      const gameScreen = document.getElementById('game-screen');
+      if (!gameScreen.classList.contains('active')) return;
+
+      const meaningNext  = document.getElementById('meaning-next-btn');
+      const readingNext  = document.getElementById('next-btn');
+      const meaningInput = document.getElementById('meaning-input');
+      const answerInput  = document.getElementById('answer-input');
+
+      // Advance only when the matching button is visible AND that phase's
+      // input is disabled (i.e. the answer has actually been checked). Tying
+      // it to the disabled input — rather than to which element has focus —
+      // avoids any race with the focus timeout and prevents skip/loop bugs.
+      if (meaningNext.style.display === 'block' && meaningInput.disabled) {
+        e.preventDefault();
+        meaningNext.click(); // runs proceedToReading or nextWord
+      } else if (readingNext.style.display === 'block' && answerInput.disabled) {
+        e.preventDefault();
+        readingNext.click(); // runs nextWord
+      }
+    });
+
+
+    // ─────────────────────────────────────────────
+    // RENDER MASTERY BAR  —  overall green/yellow/unfilled progress for the
+    // active level, based on the persistent cardStatus map.
+    // ─────────────────────────────────────────────
+    function renderMasteryBar() {
+      // Count this level's UNIQUE cards by their display kanji
+      const totalCards = deck.length;
+      let green = 0, yellow = 0;
+
+      deck.forEach(function(w) {
+        const st = cardStatus[currentLevel + ':' + w.kanji];
+        if (st === 'green')  green++;
+        else if (st === 'yellow') yellow++;
+      });
+
+      const empty = totalCards - green - yellow;
+      const gPct = totalCards ? (green  / totalCards) * 100 : 0;
+      const yPct = totalCards ? (yellow / totalCards) * 100 : 0;
+
+      document.getElementById('mastery-green').style.width  = gPct + '%';
+      document.getElementById('mastery-yellow').style.width = yPct + '%';
+      document.getElementById('ml-green-count').textContent  = green;
+      document.getElementById('ml-yellow-count').textContent = yellow;
+      document.getElementById('ml-empty-count').textContent  = empty;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // RENDER CUSTOM MASTERY BAR  —  combined progress across ALL custom decks.
+    // Totals every card in every custom deck and colours by its saved status.
+    // Hidden entirely when there are no decks.
+    // ─────────────────────────────────────────────
+    function renderCustomMasteryBar() {
+      const wrap = document.getElementById('custom-mastery-wrap');
+
+      // No decks → hide the bar and stop.
+      if (customDecks.length === 0) {
+        wrap.style.display = 'none';
+        return;
+      }
+
+      let total = 0, green = 0, yellow = 0;
+
+      // Each card's status is keyed "custom:<deckId>:<kanji>" — the same key
+      // markCleared() writes during play. We total across every deck.
+      customDecks.forEach(function(d) {
+        d.cards.forEach(function(c) {
+          if (!c.kanji) return; // skip blank/incomplete rows
+          total++;
+          const st = cardStatus['custom:' + d.id + ':' + c.kanji];
+          if (st === 'green')  green++;
+          else if (st === 'yellow') yellow++;
+        });
+      });
+
+      // If every deck is empty (no real cards), there's nothing to show.
+      if (total === 0) { wrap.style.display = 'none'; return; }
+
+      const empty = total - green - yellow;
+      const gPct = (green  / total) * 100;
+      const yPct = (yellow / total) * 100;
+
+      document.getElementById('cm-green').style.width  = gPct + '%';
+      document.getElementById('cm-yellow').style.width = yPct + '%';
+      document.getElementById('cm-green-count').textContent  = green;
+      document.getElementById('cm-yellow-count').textContent = yellow;
+      document.getElementById('cm-empty-count').textContent  = empty;
+      wrap.style.display = 'block';
+    }
+
+
+    // ─────────────────────────────────────────────
+    // SELECT LEVEL  —  called from the level cards.
+    // N5 and N4 are unlocked; N3-N1 are greyed out in the HTML.
+    // ─────────────────────────────────────────────
+    function selectLevel(level) {
+      currentLevel = level;
+      setActiveLevel(level);          // swap the active deck + topics
+      refreshDynamicTopics();         // dynamic cards reflect the new level
+      document.getElementById('topic-level-label').textContent = level;
+      renderMasteryBar();
+      showScreen('topic-screen');
+    }
+
+
+    // ─────────────────────────────────────────────
+    // TOAST  —  brief confirmation message that slides up and fades.
+    // ─────────────────────────────────────────────
+    let toastTimer = null;
+    function showToast(message) {
+      const t = document.getElementById('toast');
+      t.textContent = message;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+
+    // ─────────────────────────────────────────────
+    // SAVE PROGRESS  —  writes the player's stats AND custom decks to the
+    // browser's localStorage so everything survives a page refresh, even when
+    // the file is opened directly (no server needed). Sets become arrays.
+    // ─────────────────────────────────────────────
+    function saveProgress(silent) {
+      // Sets can't be JSON'd, so convert each level's Set to a plain array.
+      const seenArrays = {}, mistakeArrays = {};
+      for (const lvl in seenByLevel)    seenArrays[lvl]    = [...seenByLevel[lvl]];
+      for (const lvl in mistakeByLevel) mistakeArrays[lvl] = [...mistakeByLevel[lvl]];
+
+      const data = {
+        personalBests:    personalBests,
+        globalTotalScore: globalTotalScore,
+        globalTotalAsked: globalTotalAsked,
+        globalSessions:   globalSessions,
+        seenByLevel:      seenArrays,
+        mistakeByLevel:   mistakeArrays,
+        cardStatus:       cardStatus,
+        customDecks:      customDecks,
+        savedAt:          Date.now()
+      };
+      try {
+        localStorage.setItem('kanjiflash-progress', JSON.stringify(data));
+        if (!silent) showToast('✓ Progress saved');
+      } catch (err) {
+        console.error('Save failed:', err);
+        if (!silent) showToast('⚠ Could not save');
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // LOAD PROGRESS  —  runs on page load. Restores saved stats + custom decks.
+    // ─────────────────────────────────────────────
+    function loadProgress() {
+      try {
+        const raw = localStorage.getItem('kanjiflash-progress');
+        if (!raw) return;
+
+        const data = JSON.parse(raw);
+        personalBests    = data.personalBests    || {};
+        globalTotalScore = data.globalTotalScore || 0;
+        globalTotalAsked = data.globalTotalAsked || 0;
+        globalSessions   = data.globalSessions   || 0;
+        cardStatus       = data.cardStatus || {};
+        customDecks      = data.customDecks || [];
+
+        // Rebuild per-level Sets from saved arrays.
+        seenByLevel = {};
+        mistakeByLevel = {};
+        if (data.seenByLevel) {
+          for (const lvl in data.seenByLevel) seenByLevel[lvl] = new Set(data.seenByLevel[lvl]);
+        }
+        if (data.mistakeByLevel) {
+          for (const lvl in data.mistakeByLevel) mistakeByLevel[lvl] = new Set(data.mistakeByLevel[lvl]);
+        }
+        // Backward-compatibility: older saves stored flat seen/mistake lists
+        // with no level info. We can't know which level they belonged to, so
+        // we drop them rather than mis-attribute them to the wrong level.
+
+        // Refresh any UI that depends on this data
+        updateGlobalStats();
+        refreshDynamicTopics();
+      } catch (err) {
+        // No saved data or storage unavailable — start fresh, no error needed
+        console.log('No saved progress found:', err);
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // BUILD STUDY LIST  —  one section per topic, each listing every kanji
+    // with its meaning, reading, romaji, and a speak button. Built once.
+    // ─────────────────────────────────────────────
+    function buildStudyList() {
+      const container = document.getElementById('study-list');
+      container.innerHTML = '';
+
+      topics.forEach(function(topic) {
+        // Gather this topic's cards from the master deck
+        const cards = deck.filter(w => topic.keys.includes(w.kanji));
+        if (cards.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'study-section';
+
+        // Section heading
+        const h = document.createElement('h3');
+        h.textContent = topic.name + '  ·  ' + cards.length + ' kanji';
+        section.appendChild(h);
+
+        // One row per card
+        cards.forEach(function(word) {
+          const row = document.createElement('div');
+          row.className = 'study-row';
+          row.innerHTML =
+            '<div class="sr-kanji">' + word.kanji + '</div>' +
+            '<div class="sr-info">' +
+              '<div class="sr-english">' + word.english + '</div>' +
+              '<div class="sr-reading">' + word.reading +
+                ' <span class="sr-romaji">' + word.romaji + '</span></div>' +
+            '</div>';
+
+          // Speak button
+          const speakBtn = document.createElement('button');
+          speakBtn.className = 'sr-speak';
+          speakBtn.textContent = '🔊';
+          speakBtn.onclick = function() { speakWord(word.reading, speakBtn); };
+          row.appendChild(speakBtn);
+
+          section.appendChild(row);
+        });
+
+        container.appendChild(section);
+      });
+    }
+
+
+    // ─────────────────────────────────────────────
+    // SHOW STUDY LIST  —  build (first time) and reveal the study screen
+    // ─────────────────────────────────────────────
+    function showStudyList() {
+      const container = document.getElementById('study-list');
+      if (!container.hasChildNodes()) buildStudyList(); // build once, then reuse
+      showScreen('study-screen');
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // CUSTOM DECKS  —  manager, editor, and play wiring
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Build the englishAlts array for a custom card (same rule as built-ins):
+    // accept the full meaning, each "/"-separated part, and "to ..." forms.
+    function buildAlts(english) {
+      const parts = english.split('/').map(p => p.trim().toLowerCase()).filter(Boolean);
+      const withTo = parts.map(p => 'to ' + p);
+      return [...new Set([english.toLowerCase(), ...parts, ...withTo])];
+    }
+
+    // Generate a simple unique id for a new deck
+    function makeDeckId() {
+      return 'deck_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    }
+
+    // ─────────────────────────────────────────────
+    // SHOW DECK LIST  —  render all custom decks
+    // ─────────────────────────────────────────────
+    function showDeckList() {
+      const list = document.getElementById('deck-list');
+      list.innerHTML = '';
+
+      if (customDecks.length === 0) {
+        list.innerHTML = '<div class="deck-empty">You haven\'t made any decks yet.<br>' +
+          'Tap the New deck button above to create your first one.</div>';
+      } else {
+        customDecks.forEach(function(d) {
+          const row = document.createElement('div');
+          row.className = 'deck-row';
+          const styleLabel = d.phaseMode === 'both' ? 'meaning + reading'
+                           : d.phaseMode === 'meaning' ? 'meaning only'
+                           : 'reading only';
+          const info = document.createElement('div');
+          info.className = 'dr-info';
+          info.innerHTML =
+            '<div class="dr-name"></div>' +
+            '<div class="dr-meta">' + d.cards.length + ' card' +
+              (d.cards.length === 1 ? '' : 's') + ' &middot; ' + styleLabel + '</div>';
+          // Set name via textContent to avoid HTML injection from user input
+          info.querySelector('.dr-name').textContent = d.name || 'Untitled deck';
+
+          const playBtn = document.createElement('button');
+          playBtn.className = 'dr-btn dr-play';
+          playBtn.textContent = '▶ Play';
+          playBtn.onclick = function() { playDeck(d.id); };
+          if (d.cards.length === 0) { playBtn.disabled = true; playBtn.style.opacity = '0.4'; }
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'dr-btn dr-edit';
+          editBtn.textContent = '✏ Edit';
+          editBtn.onclick = function() { openDeck(d.id); };
+
+          row.appendChild(info);
+          row.appendChild(playBtn);
+          row.appendChild(editBtn);
+          list.appendChild(row);
+        });
+      }
+      showScreen('deck-list-screen');
+      renderCustomMasteryBar(); // combined progress across all custom decks
+    }
+
+    // ─────────────────────────────────────────────
+    // NEW DECK  —  create a blank deck and open the editor
+    // ─────────────────────────────────────────────
+    function newDeck() {
+      const d = { id: makeDeckId(), name: '', phaseMode: 'both', cards: [] };
+      customDecks.push(d);
+      editingDeckId = d.id;
+      renderEditor();
+    }
+
+    // ─────────────────────────────────────────────
+    // OPEN DECK  —  load an existing deck into the editor
+    // ─────────────────────────────────────────────
+    function openDeck(id) {
+      editingDeckId = id;
+      renderEditor();
+    }
+
+    // Find the deck currently being edited
+    function getEditingDeck() {
+      return customDecks.find(d => d.id === editingDeckId) || null;
+    }
+
+    // ─────────────────────────────────────────────
+    // RENDER EDITOR  —  populate the editor screen from the editing deck
+    // ─────────────────────────────────────────────
+    function renderEditor() {
+      const d = getEditingDeck();
+      if (!d) { showDeckList(); return; }
+
+      document.getElementById('deck-name-input').value = d.name;
+      document.getElementById('deck-phase-select').value = d.phaseMode;
+
+      const list = document.getElementById('card-editor-list');
+      list.innerHTML = '';
+      if (d.cards.length === 0) {
+        d.cards.push({ kanji: '', english: '', reading: '', romaji: '' });
+      }
+      d.cards.forEach(function(c, i) { list.appendChild(makeCardEditRow(c, i)); });
+
+      updatePhaseHint();
+      showScreen('deck-editor-screen');
+    }
+
+    // Update the hint under the quiz-style selector + dim optional fields
+    function updatePhaseHint() {
+      const mode = document.getElementById('deck-phase-select').value;
+      const hint = document.getElementById('phase-hint');
+      if (mode === 'both')         hint.textContent = 'Players type the meaning, then the reading. Both fields required.';
+      else if (mode === 'meaning') hint.textContent = 'Players type only the meaning. Reading is optional.';
+      else                         hint.textContent = 'Players type only the reading. Meaning is optional.';
+      document.querySelectorAll('.card-edit').forEach(function(row){
+        const eng = row.querySelector('.ce-english');
+        const rd  = row.querySelector('.ce-reading');
+        if (!eng || !rd) return;
+        eng.classList.toggle('ce-dim', mode === 'reading');
+        rd.classList.toggle('ce-dim', mode === 'meaning');
+      });
+    }
+
+    // Build one editable card row
+    function makeCardEditRow(card, index) {
+      const wrap = document.createElement('div');
+      wrap.className = 'card-edit';
+
+      const top = document.createElement('div');
+      top.className = 'ce-top';
+      const num = document.createElement('span');
+      num.className = 'ce-num';
+      num.textContent = 'Card ' + (index + 1);
+      const rm = document.createElement('button');
+      rm.className = 'ce-remove';
+      rm.textContent = '✕';
+      rm.title = 'Remove card';
+      rm.onclick = function() { removeCardRow(index); };
+      top.appendChild(num);
+      top.appendChild(rm);
+
+      const front = document.createElement('input');
+      front.className = 'ce-kanji';
+      front.placeholder = 'Front (e.g. 水 or any word)';
+      front.value = card.kanji || '';
+
+      const eng = document.createElement('input');
+      eng.className = 'ce-english';
+      eng.placeholder = 'Meaning (e.g. water). Use / for alternatives';
+      eng.value = card.english || '';
+
+      const rd = document.createElement('input');
+      rd.className = 'ce-reading';
+      rd.placeholder = 'Reading (e.g. みず or mizu)';
+      rd.value = card.reading || '';
+
+      wrap.appendChild(top);
+      wrap.appendChild(front);
+      wrap.appendChild(eng);
+      wrap.appendChild(rd);
+      return wrap;
+    }
+
+    // ─────────────────────────────────────────────
+    // ADD / REMOVE card rows. Sync DOM into the deck first so typed
+    // (unsaved) values aren't lost when we re-render.
+    // ─────────────────────────────────────────────
+    function addCardRow() {
+      syncEditorToDeck();
+      const d = getEditingDeck();
+      d.cards.push({ kanji: '', english: '', reading: '', romaji: '' });
+      renderEditor();
+      const rows = document.querySelectorAll('.card-edit');
+      const last = rows[rows.length - 1];
+      if (last) last.querySelector('.ce-kanji').focus();
+    }
+
+    function removeCardRow(index) {
+      syncEditorToDeck();
+      const d = getEditingDeck();
+      d.cards.splice(index, 1);
+      renderEditor();
+    }
+
+    // Read every card row from the DOM back into the editing deck object.
+    function syncEditorToDeck() {
+      const d = getEditingDeck();
+      if (!d) return;
+      d.name = document.getElementById('deck-name-input').value.trim();
+      d.phaseMode = document.getElementById('deck-phase-select').value;
+      const rows = document.querySelectorAll('#card-editor-list .card-edit');
+      d.cards = [...rows].map(function(row) {
+        return {
+          kanji:   row.querySelector('.ce-kanji').value.trim(),
+          english: row.querySelector('.ce-english').value.trim(),
+          reading: row.querySelector('.ce-reading').value.trim(),
+          romaji:  ''
+        };
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // VALIDATE a deck. Returns an error string or null.
+    // ─────────────────────────────────────────────
+    function validateDeck(d, requireForPlay) {
+      if (!d.name) return 'Please give your deck a name.';
+      const needMeaning = d.phaseMode === 'both' || d.phaseMode === 'meaning';
+      const needReading = d.phaseMode === 'both' || d.phaseMode === 'reading';
+      const valid = d.cards.filter(function(c) {
+        if (!c.kanji) return false;
+        if (needMeaning && !c.english) return false;
+        if (needReading && !c.reading) return false;
+        return true;
+      });
+      if (requireForPlay && valid.length === 0) {
+        return 'Add at least one complete card (front' +
+          (needMeaning ? ' + meaning' : '') +
+          (needReading ? ' + reading' : '') + ') to play.';
+      }
+      return null;
+    }
+
+    // Drop incomplete cards and attach englishAlts to each remaining card.
+    function finalizeDeckCards(d) {
+      const needMeaning = d.phaseMode === 'both' || d.phaseMode === 'meaning';
+      const needReading = d.phaseMode === 'both' || d.phaseMode === 'reading';
+      return d.cards
+        .filter(function(c) {
+          if (!c.kanji) return false;
+          if (needMeaning && !c.english) return false;
+          if (needReading && !c.reading) return false;
+          return true;
+        })
+        .map(function(c) {
+          return {
+            kanji:   c.kanji,
+            english: c.english || c.kanji,
+            reading: c.reading || '',
+            romaji:  '',
+            englishAlts: buildAlts(c.english || c.kanji)
+          };
+        });
+    }
+
+    // ─────────────────────────────────────────────
+    // SAVE current deck (stay on editor). Returns true if saved.
+    // ─────────────────────────────────────────────
+    function saveCurrentDeck() {
+      syncEditorToDeck();
+      const d = getEditingDeck();
+      const err = validateDeck(d, false);
+      if (err) { showToast('⚠ ' + err); return false; }
+      saveProgress(true);
+      showToast('✓ Deck saved');
+      return true;
+    }
+
+    // ─────────────────────────────────────────────
+    // DELETE the deck currently open in the editor
+    // ─────────────────────────────────────────────
+    function deleteCurrentDeck() {
+      const d = getEditingDeck();
+      if (!d) { showDeckList(); return; }
+      const ok = confirm('Delete the deck "' + (d.name || 'Untitled') + '"? This cannot be undone.');
+      if (!ok) return;
+      customDecks = customDecks.filter(x => x.id !== editingDeckId);
+      editingDeckId = null;
+      saveProgress(true);
+      showToast('Deck deleted');
+      showDeckList();
+    }
+
+    // ─────────────────────────────────────────────
+    // SAVE & PLAY the current deck
+    // ─────────────────────────────────────────────
+    function playCurrentDeck() {
+      syncEditorToDeck();
+      const d = getEditingDeck();
+      const err = validateDeck(d, true);
+      if (err) { showToast('⚠ ' + err); return; }
+      saveProgress(true);
+      launchDeck(d);
+    }
+
+    // Play a deck from the list by id
+    function playDeck(id) {
+      const d = customDecks.find(x => x.id === id);
+      if (!d) return;
+      const err = validateDeck(d, true);
+      if (err) { showToast('⚠ ' + err); return; }
+      launchDeck(d);
+    }
+
+    // ─────────────────────────────────────────────
+    // LAUNCH DECK  —  turn a custom deck into the active level + topic and
+    // start the game using the SAME engine as the built-in levels.
+    // ─────────────────────────────────────────────
+    function launchDeck(d) {
+      const cards = finalizeDeckCards(d);
+
+      // Make this custom deck the active "deck" so renderMasteryBar, the
+      // study list, and dynamic-topic filters all read consistent data.
+      deck = cards;
+      // currentLevel namespaces personal-bests and card mastery to this deck.
+      currentLevel = 'custom:' + d.id;
+
+      // Build a single topic spanning all the deck's cards, carrying its
+      // phaseMode so the game engine knows how many phases to run.
+      const topic = {
+        name: d.name,
+        phaseMode: d.phaseMode,
+        _cards: cards
+      };
+
+      startGame(topic);
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────
+    // INIT  —  build the topic grid as soon as the page loads
+    // ─────────────────────────────────────────────
+    buildTopicGrid();
+    buildAllCardsButton();
+    refreshDynamicTopics(); // render the (empty) dynamic cards on first load
+    loadProgress();         // restore saved stats if the player has any
+
+  </script>
+</body>
+</html>
