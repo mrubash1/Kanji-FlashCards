@@ -55,6 +55,24 @@ export function pointsPerCard(mode: PhaseMode): number {
 }
 
 /**
+ * Did the learner pass the WHOLE card? This is the rule the scheduler grades on
+ * (F1): in two-step `both` mode the card passes only if BOTH the meaning step
+ * AND the reading step were answered correctly; in single modes the one asked
+ * step decides. A step that wasn't asked (or wasn't reached) is passed as `null`
+ * and ignored. Pure + tested so "miss the reading → reset to box 1" is a
+ * sub-millisecond regression, not only an e2e guarantee.
+ */
+export function cardPassed(
+  mode: PhaseMode,
+  meaningCorrect: boolean | null,
+  readingCorrect: boolean | null,
+): boolean {
+  const meaningOk = asksMeaning(mode) ? meaningCorrect === true : true
+  const readingOk = asksReading(mode) ? readingCorrect === true : true
+  return meaningOk && readingOk
+}
+
+/**
  * Turn a saved custom deck into playable cards: drop rows that lack the fields
  * the deck's mode requires, then attach `meaningAlts`. Mirrors the original
  * `finalizeDeckCards`, producing the same forgiving grading for custom cards.

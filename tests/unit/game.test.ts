@@ -5,7 +5,9 @@ import {
   buildTopicSession,
   finalizeDeckCards,
   validateDeck,
+  cardPassed,
 } from '../../src/lib/game'
+import { gradeCard, initialCardState } from '../../src/lib/scheduler'
 import { TOPICS } from '../../src/data/cards'
 import type { CardState, Deck } from '../../src/types'
 
@@ -36,6 +38,39 @@ describe('dueKanjiForLevel / buildDueSession', () => {
 
   it('is empty when nothing is due', () => {
     expect(buildDueSession('N5', { 'N5:一': state(3, NOW + DAY) }, NOW).cards).toHaveLength(0)
+  })
+})
+
+describe('cardPassed — the both-steps-correct rule (F1)', () => {
+  it('two-step "both": passes only when meaning AND reading are correct', () => {
+    expect(cardPassed('both', true, true)).toBe(true)
+    expect(cardPassed('both', true, false)).toBe(false)
+    expect(cardPassed('both', false, true)).toBe(false)
+    expect(cardPassed('both', false, false)).toBe(false)
+    // meaning wrong → reading never reached (null): still a fail.
+    expect(cardPassed('both', false, null)).toBe(false)
+  })
+
+  it('single modes are decided by the one asked step', () => {
+    expect(cardPassed('meaning', true, null)).toBe(true)
+    expect(cardPassed('meaning', false, null)).toBe(false)
+    expect(cardPassed('reading', null, true)).toBe(true)
+    expect(cardPassed('reading', null, false)).toBe(false)
+  })
+
+  it('composes with the scheduler: pass meaning but miss reading → box 1', () => {
+    const now = 1_000
+    // A card already promoted to box 3.
+    const state: CardState = { box: 3, due: now, lastReviewed: 0 }
+    const passed = cardPassed('both', true, false) // got meaning, missed reading
+    expect(passed).toBe(false)
+    expect(gradeCard(state, passed, now).box).toBe(1) // resets all the way down
+  })
+
+  it('composes with the scheduler: pass both → promote', () => {
+    const now = 1_000
+    const state = initialCardState(now) // box 1
+    expect(gradeCard(state, cardPassed('both', true, true), now).box).toBe(2)
   })
 })
 

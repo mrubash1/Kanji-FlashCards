@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext'
 import AppHeader from '../components/AppHeader'
 import ScoreBar from '../components/ScoreBar'
 import SpeakerButton from '../components/SpeakerButton'
+import Flashcard from '../components/Flashcard'
 import QuizInput, { type QuizInputHandle } from '../components/QuizInput'
 import {
   shuffle,
@@ -22,6 +23,7 @@ import {
   isMeaningCorrect,
   pointsPerCard,
   asksMeaning,
+  cardPassed,
 } from '../lib/game'
 import { isReadingCorrect } from '../lib/kana'
 
@@ -49,6 +51,10 @@ export default function Quiz() {
 
   // Did the learner miss EITHER step of the current card? (no re-render needed)
   const missedRef = useRef(false)
+  // Per-step outcomes for the current card (null = not asked / not yet answered).
+  // These feed `cardPassed`, the pure both-steps-correct rule.
+  const meaningOkRef = useRef<boolean | null>(null)
+  const readingOkRef = useRef<boolean | null>(null)
   // Re-entrancy guards against fast/double Enter: `answeredRef` blocks a second
   // check of the same step; `finishedRef` blocks a second finish of the game.
   const answeredRef = useRef(false)
@@ -98,7 +104,7 @@ export default function Quiz() {
   if (!session || cards.length === 0) {
     return (
       <>
-        <AppHeader title="Quiz" onBack={goHome} backLabel="Home" />
+        <AppHeader title="Quiz" onBack={goHome} backLabel="Levels" />
         <main className="screen">
           <div className="empty-state">
             <span className="es-emoji" aria-hidden="true">🎏</span>
@@ -143,6 +149,13 @@ export default function Quiz() {
     setShowSpeak(false)
     missedRef.current = false
     answeredRef.current = false
+    meaningOkRef.current = null
+    readingOkRef.current = null
+  }
+
+  /** Whether the current card passed overall, per the both-steps rule (F1). */
+  function currentCardPassed(): boolean {
+    return cardPassed(mode, meaningOkRef.current, readingOkRef.current)
   }
 
   function onNext() {
@@ -155,7 +168,7 @@ export default function Quiz() {
       answeredRef.current = false // the reading step hasn't been answered yet
       return
     }
-    endCard(!missedRef.current)
+    endCard(currentCardPassed())
   }
 
   function checkMeaning() {
@@ -164,6 +177,7 @@ export default function Quiz() {
     if (!value.trim()) return
     answeredRef.current = true
     const correct = isMeaningCorrect(value, card)
+    meaningOkRef.current = correct
     setFlash(correct ? 'correct' : 'wrong')
     if (correct) {
       bumpScore()
@@ -183,6 +197,7 @@ export default function Quiz() {
     if (!value.trim()) return
     answeredRef.current = true
     const correct = isReadingCorrect(value, card)
+    readingOkRef.current = correct
     setFlash(correct ? 'correct' : 'wrong')
     if (correct) {
       bumpScore()
@@ -219,9 +234,13 @@ export default function Quiz() {
     nextLabel = isLast ? 'Finish →' : missedRef.current ? 'Got it — next card →' : 'Next word →'
   }
 
+  // Back affordance names its destination (consistent with every other screen):
+  // a custom-deck quiz returns to My Decks, a built-in quiz to the topic picker.
+  const quitLabel = session.levelKey.startsWith('custom:') ? 'My Decks' : 'Topics'
+
   return (
     <>
-      <AppHeader title={topicName} onBack={quitSession} backLabel="Quit" />
+      <AppHeader title={topicName} onBack={quitSession} backLabel={quitLabel} />
       <main className="screen" id="game-screen">
         <ScoreBar
           cardsLeft={cardsLeft}
@@ -241,25 +260,20 @@ export default function Quiz() {
           Card {index + 1} of {cards.length}. {phaseLabel}.
         </p>
 
-        <div className={`card${flash ? ` flash-${flash}` : ''}`} key={index}>
-          <div className="phase-label">{phaseLabel}</div>
-          <div className="kanji-display" lang="ja">
-            {card.kanji}
-          </div>
-          {showMeaningText && <div className="english-display">{card.meaning}</div>}
-
-          <p className="hint-text">
-            {step === 'meaning'
+        {/* key={index} re-runs the slide-in animation for each new card. */}
+        <Flashcard
+          key={index}
+          kanji={card.kanji}
+          phaseLabel={phaseLabel}
+          meaning={showMeaningText ? card.meaning : undefined}
+          hint={
+            step === 'meaning'
               ? 'What does this kanji mean in English?'
-              : 'Now type the reading — hiragana or romaji both work!'}
-          </p>
-
-          <div className="feedback" role="status" aria-atomic="true">
-            {feedback && (
-              <span className={feedback.correct ? 'correct' : 'wrong'}>{feedback.text}</span>
-            )}
-          </div>
-
+              : 'Now type the reading — hiragana or romaji both work!'
+          }
+          feedback={feedback}
+          flash={flash}
+        >
           <div className="action-bar action-bar--sticky">
             {step === 'meaning' ? (
               <QuizInput
@@ -309,7 +323,7 @@ export default function Quiz() {
               </>
             )}
           </div>
-        </div>
+        </Flashcard>
       </main>
     </>
   )

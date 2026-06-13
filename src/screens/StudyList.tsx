@@ -15,7 +15,7 @@ export default function StudyList() {
 
   return (
     <>
-      <AppHeader title="Study list" onBack={() => navigate('topic')} backLabel="Back" />
+      <AppHeader title="Study list" onBack={() => navigate('topic')} backLabel="Topics" />
       <main className="screen" id="study-screen">
         <p className="subtitle">
           Tap 🔊 to hear any word. Ready to practise? Head back and pick a topic.
