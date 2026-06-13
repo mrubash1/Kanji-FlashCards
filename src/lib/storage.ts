@@ -86,11 +86,26 @@ function asStringArray(x: unknown): string[] {
   return Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : []
 }
 
+/**
+ * True for keys that, when assigned via `out[key] = ...`, could reach into the
+ * prototype chain (`__proto__` invokes the setter; `constructor`/`prototype`
+ * are the other classic prototype-pollution vectors). `JSON.parse` happily
+ * produces a real own `"__proto__"` key from imported text, so every map we
+ * build from untrusted keys skips these to stay robust even though state is
+ * wholesale-replaced today rather than merged.
+ */
+function isUnsafeKey(k: string): boolean {
+  return k === '__proto__' || k === 'constructor' || k === 'prototype'
+}
+
 /** Coerce an unknown value into a record of string[] (for seen/mistake maps). */
 function asStringArrayMap(x: unknown): Record<string, string[]> {
   const out: Record<string, string[]> = {}
   if (isObject(x)) {
-    for (const key of Object.keys(x)) out[key] = asStringArray(x[key])
+    for (const key of Object.keys(x)) {
+      if (isUnsafeKey(key)) continue // never let untrusted data touch the prototype
+      out[key] = asStringArray(x[key])
+    }
   }
   return out
 }
@@ -113,6 +128,7 @@ function asCardStatesMap(x: unknown): Record<string, CardState> {
   const out: Record<string, CardState> = {}
   if (isObject(x)) {
     for (const key of Object.keys(x)) {
+      if (isUnsafeKey(key)) continue // never let untrusted data touch the prototype
       const state = asCardState(x[key])
       if (state) out[key] = state
     }
@@ -124,6 +140,7 @@ function asPersonalBestsMap(x: unknown): Record<string, PersonalBest> {
   const out: Record<string, PersonalBest> = {}
   if (isObject(x)) {
     for (const key of Object.keys(x)) {
+      if (isUnsafeKey(key)) continue // never let untrusted data touch the prototype
       const v = x[key]
       if (isObject(v)) {
         out[key] = {
@@ -142,6 +159,7 @@ function asCardStatusMap(x: unknown): Record<string, 'green' | 'yellow'> {
   const out: Record<string, 'green' | 'yellow'> = {}
   if (isObject(x)) {
     for (const key of Object.keys(x)) {
+      if (isUnsafeKey(key)) continue // never let untrusted data touch the prototype
       const v = x[key]
       if (v === 'green' || v === 'yellow') out[key] = v
     }

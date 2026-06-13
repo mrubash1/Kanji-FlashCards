@@ -235,6 +235,64 @@ describe('parseImport — rejections', () => {
   })
 })
 
+describe('prototype-pollution hardening', () => {
+  // `JSON.parse` produces a real OWN "__proto__" key from this text — that is the
+  // realistic attack vector, not an object literal (whose `__proto__` is special).
+  // Helper to read whether the global prototype got polluted, without tripping
+  // the prototype getter on a literal.
+  const isPolluted = () =>
+    ({} as Record<string, unknown>).polluted !== undefined
+
+  it('parseImport drops a "__proto__" key in cardStates without polluting Object.prototype', () => {
+    const text =
+      '{"schemaVersion":1,"progress":{"cardStates":{"__proto__":{"polluted":true,"box":2,"due":1}},"cardStatus":{},"seenByLevel":{},"mistakeByLevel":{},"personalBests":{}},"decks":[],"savedAt":1}'
+    const r = parseImport(text)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      // The dangerous key was dropped, not carried into the clean map.
+      expect(Object.prototype.hasOwnProperty.call(r.blob.progress.cardStates, '__proto__')).toBe(false)
+      expect(r.blob.progress.cardStates).toEqual({})
+    }
+    expect(isPolluted()).toBe(false)
+    expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined()
+  })
+
+  it('parseImport drops a "__proto__" key in seenByLevel without polluting Object.prototype', () => {
+    const text =
+      '{"schemaVersion":1,"progress":{"cardStates":{},"cardStatus":{},"seenByLevel":{"__proto__":["polluted"]},"mistakeByLevel":{},"personalBests":{}},"decks":[],"savedAt":1}'
+    const r = parseImport(text)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(Object.prototype.hasOwnProperty.call(r.blob.progress.seenByLevel, '__proto__')).toBe(false)
+      expect(r.blob.progress.seenByLevel).toEqual({})
+    }
+    expect(isPolluted()).toBe(false)
+    expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined()
+  })
+
+  it('loadBlob ignores a "__proto__" key in a stored legacy blob without pollution', () => {
+    storage.setItem(
+      STORAGE_KEY,
+      '{"seenByLevel":{"__proto__":["x"]},"cardStatus":{"__proto__":"green"},"savedAt":1}',
+    )
+    const blob = loadBlob(storage)
+    expect(Object.prototype.hasOwnProperty.call(blob.progress.seenByLevel, '__proto__')).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(blob.progress.cardStatus, '__proto__')).toBe(false)
+    expect((Object.prototype as Record<string, unknown>).polluted).toBeUndefined()
+    expect(({} as Record<string, unknown>).x).toBeUndefined()
+  })
+
+  it('preserves normal keys alongside the dropped dangerous one', () => {
+    const text =
+      '{"schemaVersion":1,"progress":{"cardStates":{},"cardStatus":{},"seenByLevel":{"N5":["水"],"__proto__":["polluted"]},"mistakeByLevel":{},"personalBests":{}},"decks":[],"savedAt":1}'
+    const r = parseImport(text)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.blob.progress.seenByLevel).toEqual({ N5: ['水'] })
+    }
+  })
+})
+
 describe('isValidBlob', () => {
   it('accepts a well-formed blob and rejects junk', () => {
     expect(isValidBlob(emptyBlob())).toBe(true)

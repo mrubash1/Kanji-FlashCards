@@ -8,6 +8,11 @@
 import { useRef } from 'react'
 import { useApp } from '../context/AppContext'
 
+/** Reject imports larger than this before reading them into memory. A real data
+ * backup is a few KB; anything past 5 MB is malformed or hostile (a JSON-bomb
+ * that could hang the tab parsing it), so we refuse it up front. */
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024 // 5 MB — far above any real backup
+
 export default function DataControls() {
   const { exportData, importData, showToast } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -16,6 +21,12 @@ export default function DataControls() {
     const file = e.target.files?.[0]
     e.target.value = '' // allow re-importing the same file later
     if (!file) return
+    // Cap the size BEFORE reading the file into memory, so a giant/hostile file
+    // can't hang the tab in `file.text()` / `JSON.parse`.
+    if (file.size > MAX_IMPORT_BYTES) {
+      showToast('⚠ That file is too large to import')
+      return
+    }
     const text = await file.text()
     // Confirm before clobbering existing progress.
     if (!window.confirm('Import this file? It will replace your current progress and decks.')) {
