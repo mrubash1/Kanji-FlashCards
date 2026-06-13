@@ -29,4 +29,11 @@
      keep --text-dim for large/secondary text but provide a readable variant
      for small body copy that must pass AA. */
   --text-dim-aa: #9aa6ba; /* ~4.6:1 on --surface, AA for normal text */
+
+  /* White text on --accent (#e94560) is only 3.83:1 — below AA 4.5:1. A
+     slightly darker coral is used ONLY as the background of solid primary
+     buttons so their white label passes AA (4.57:1). --accent itself is kept
+     verbatim for borders, icons, and accent text (where it isn't a text bg).
+     Minimal-distance fix, documented in docs/ARCHITECTURE.md. */
+  --accent-deep: #d63a54; /* white text → 4.57:1 (AA) */
 }

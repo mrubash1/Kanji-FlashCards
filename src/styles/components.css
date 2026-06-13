@@ -85,7 +85,7 @@
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--accent);
+  background: var(--accent-deep); /* darker coral so white label passes AA */
   color: #fff;
 }
 .btn-outline {
@@ -238,13 +238,14 @@
   transition: border-color 0.3s ease;
   animation: slideIn 0.25s ease;
 }
+/* Entrance: slide only — NOT a fade. Animating opacity would briefly drop the
+   card's text contrast below AA while the animation runs (and accessibility
+   tools snapshot it mid-flight), so we move without fading. */
 @keyframes slideIn {
   from {
-    opacity: 0;
     transform: translateY(12px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
@@ -298,6 +299,13 @@
 }
 .quiz-input:focus {
   border-color: var(--accent);
+}
+/* Readable placeholder (browser default greys fail AA on the dark input bg). */
+.quiz-input::placeholder,
+.editor-input::placeholder,
+.card-edit input::placeholder {
+  color: var(--text-dim-aa);
+  opacity: 1;
 }
 
 .feedback {
