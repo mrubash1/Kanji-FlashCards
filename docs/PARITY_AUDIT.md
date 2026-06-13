@@ -1,7 +1,7 @@
 # Parity Audit — original `kanji-flashcards.html` → React rebuild
 
 Every line of [FEATURE_INVENTORY.md](./FEATURE_INVENTORY.md) audited against the
-rebuilt app. Verified by unit tests (54), Playwright e2e (11), and manual smoke
+rebuilt app. Verified by unit tests (73), Playwright e2e (13), and manual smoke
 runs. **Result: every feature PASS.** Items intentionally changed by the brief
 are marked PASS (changed) with a pointer to the deviation.
 
@@ -142,7 +142,7 @@ are marked PASS (changed) with a pointer to the deviation.
 | J2 Speak current card | PASS | `SpeakerButton` + `speech.speak` |
 | J3 Speak arbitrary word | PASS | `SpeakerButton` on study rows |
 | J4 Playing visual state | PASS | `.playing` pulse in `SpeakerButton` |
-| — Hidden when unavailable (new) | PASS (F2) | `SpeakerButton` returns null; e2e-verified |
+| — Disabled + tooltip when unavailable (new) | PASS (F2) | When no `ja-JP` voice exists, `SpeakerButton` renders disabled with an explanatory tooltip (no silent failures); e2e-verified |
 
 ## K. Persistence
 
