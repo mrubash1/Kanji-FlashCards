@@ -28,7 +28,7 @@ import { isReadingCorrect } from '../lib/kana'
 type Step = 'meaning' | 'reading'
 
 export default function Quiz() {
-  const { session, levelKey, progress, markSeen, markMistake, resolveCard, finishGame, goHome } =
+  const { session, levelKey, progress, markSeen, markMistake, resolveCard, finishGame, goHome, quitSession } =
     useApp()
 
   // Shuffle once for the life of this session.
@@ -221,7 +221,7 @@ export default function Quiz() {
 
   return (
     <>
-      <AppHeader title={topicName} onBack={goHome} backLabel="Quit" />
+      <AppHeader title={topicName} onBack={quitSession} backLabel="Quit" />
       <main className="screen" id="game-screen">
         <ScoreBar
           cardsLeft={cardsLeft}
@@ -234,6 +234,12 @@ export default function Quiz() {
         <div className="progress-wrap">
           <div className="progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
+
+        {/* Screen-reader announcement when a new card appears (the visual card
+            change is otherwise silent). */}
+        <p className="sr-only" role="status" aria-live="polite">
+          Card {index + 1} of {cards.length}. {phaseLabel}.
+        </p>
 
         <div className={`card${flash ? ` flash-${flash}` : ''}`} key={index}>
           <div className="phase-label">{phaseLabel}</div>
@@ -248,7 +254,7 @@ export default function Quiz() {
               : 'Now type the reading — hiragana or romaji both work!'}
           </p>
 
-          <div className="feedback" role="status" aria-live="polite">
+          <div className="feedback" role="status" aria-atomic="true">
             {feedback && (
               <span className={feedback.correct ? 'correct' : 'wrong'}>{feedback.text}</span>
             )}

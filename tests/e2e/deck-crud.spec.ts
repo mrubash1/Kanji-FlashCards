@@ -75,11 +75,8 @@ test.describe('deck CRUD', () => {
     // ── Play, then quit back ─────────────────────────────────────────────
     await row.getByRole('button', { name: '▶ Play' }).click()
     await expect(page.locator('#game-screen')).toBeVisible()
+    // Quitting a custom-deck quiz returns to My Decks (its origin), not Levels.
     await page.getByRole('button', { name: /Quit/ }).click()
-    await expect(page.locator('#level-screen')).toBeVisible()
-
-    // Back into My Decks to edit + delete.
-    await page.locator('.level-card.custom-card').click()
     await expect(page.locator('#deck-list-screen')).toBeVisible()
 
     // ── Edit → Delete ─────────────────────────────────────────────────────

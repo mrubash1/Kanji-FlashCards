@@ -18,9 +18,6 @@ interface SpeakerButtonProps {
   label?: string
 }
 
-const UNAVAILABLE_TITLE =
-  'Audio needs a Japanese (ja-JP) voice, which this browser/device does not have installed.'
-
 export default function SpeakerButton({
   reading,
   variant = 'full',
@@ -45,7 +42,7 @@ export default function SpeakerButton({
         type="button"
         className={`sr-speak${playing ? ' playing' : ''}`}
         onClick={handle}
-        title={UNAVAILABLE_TITLE}
+        title={`Hear ${reading}`}
         aria-label={`Hear ${reading}`}
       >
         🔊

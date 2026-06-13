@@ -69,6 +69,8 @@ interface AppContextValue {
   startSession: (cfg: SessionConfig) => void
   finishGame: (args: { score: number; total: number; timeSec: number; uniqueCount: number }) => void
   goHome: () => void
+  /** Leave an in-progress quiz, returning to its origin (topics or My Decks). */
+  quitSession: () => void
 
   // ── progress updates during play ──────────────────────────────────
   markSeen: (levelKey: string, kanji: string) => void
@@ -169,6 +171,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const goHome = useCallback(() => setScreen('level'), [])
+
+  // Quitting a quiz should land you where you came from: a custom-deck session
+  // returns to My Decks, a built-in session to that level's topic picker.
+  const quitSession = useCallback(() => {
+    setScreen(session?.levelKey.startsWith('custom:') ? 'deckList' : 'topic')
+  }, [session])
 
   // ── progress mutators (immutable updates → effect persists) ─────────
   const markSeen = useCallback((lk: string, kanji: string) => {
@@ -330,6 +338,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     startSession,
     finishGame,
     goHome,
+    quitSession,
     markSeen,
     markMistake,
     resolveCard,

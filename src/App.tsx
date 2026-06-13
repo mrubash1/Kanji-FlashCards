@@ -7,6 +7,7 @@
  * from the original teachable. The Toast lives here so it floats above any
  * screen.
  */
+import { useEffect, useRef } from 'react'
 import { AppProvider, useApp } from './context/AppContext'
 import type { Screen } from './types'
 import Toast from './components/Toast'
@@ -43,8 +44,21 @@ function CurrentScreen({ screen }: { screen: Screen }) {
 
 function Shell() {
   const { screen, toast } = useApp()
+  const appRef = useRef<HTMLDivElement>(null)
+
+  // On each screen change, move keyboard focus to the new screen's first
+  // heading (F8) so screen-reader and keyboard users aren't stranded on a
+  // control that no longer exists. The heading is made focusable just-in-time.
+  useEffect(() => {
+    const heading = appRef.current?.querySelector<HTMLElement>('h1, h2')
+    if (heading) {
+      heading.setAttribute('tabindex', '-1')
+      heading.focus({ preventScroll: true })
+    }
+  }, [screen])
+
   return (
-    <div className="app">
+    <div className="app" ref={appRef}>
       <CurrentScreen screen={screen} />
       <Toast message={toast} />
     </div>
