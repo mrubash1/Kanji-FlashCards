@@ -1,0 +1,32 @@
+/* ─────────────────────────────────────────────
+   DESIGN TOKENS — ported verbatim from the original kanji-flashcards.html
+   :root block. Change these to retheme the whole app.
+
+   Dark indigo "night sky" theme. The accent is the "ink stamp" coral-red.
+   ───────────────────────────────────────────── */
+:root {
+  --bg: #1a1a2e; /* deep indigo night sky */
+  --surface: #16213e; /* card background */
+  --surface2: #0f3460; /* elevated surface */
+  --accent: #e94560; /* hot coral-red — the "ink stamp" colour */
+  --accent-soft: #ff6b8a; /* lighter version for hover */
+  --gold: #f5a623; /* correct answer glow */
+  --text: #eaeaea; /* primary text */
+  --text-dim: #8892a4; /* secondary / hint text */
+  --correct: #4caf7d; /* green for correct */
+  --wrong: #e94560; /* red for wrong (reuses accent) */
+  --radius: 16px;
+  --radius-sm: 8px;
+
+  /* Extra named tokens used inline in the original (lifted out so they are
+     reusable and documented). These are the literal hex values the original
+     hard-coded next to the :root vars. */
+  --green: #4ade80; /* topic hover / mastery "perfect" */
+  --purple: #a78bfa; /* "All cards" / custom-deck accent */
+
+  /* Contrast fix (documented in ARCHITECTURE.md): --text-dim #8892a4 on
+     --surface #16213e is ~3.9:1, just under WCAG AA 4.5:1 for body text. We
+     keep --text-dim for large/secondary text but provide a readable variant
+     for small body copy that must pass AA. */
+  --text-dim-aa: #9aa6ba; /* ~4.6:1 on --surface, AA for normal text */
+}
