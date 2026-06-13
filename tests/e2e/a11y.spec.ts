@@ -91,14 +91,21 @@ test.describe('accessibility', () => {
     await expectNoA11yViolations(page, 'deck editor')
   })
 
-  test('speaker button is hidden when no ja-JP voice exists', async ({ page }) => {
+  test('speaker button is disabled with an explanatory tooltip when no ja-JP voice exists', async ({
+    page,
+  }) => {
     await installNoJapaneseVoice(page)
     await seed(page)
     await page.goto('/')
     await intoQuiz(page)
     await reachReadingReveal(page)
 
-    // No Japanese voice → SpeakerButton renders null.
-    await expect(page.locator('.sound-btn')).toHaveCount(0)
+    // No Japanese voice → the button is NOT silently hidden; it's present but
+    // disabled, with a tooltip + accessible label explaining why (F2: "no
+    // silent failures").
+    const speaker = page.locator('.sound-btn')
+    await expect(speaker).toBeVisible()
+    await expect(speaker).toBeDisabled()
+    await expect(speaker).toHaveAttribute('title', /Audio unavailable/i)
   })
 })

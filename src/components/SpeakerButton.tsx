@@ -1,11 +1,11 @@
 /**
  * SpeakerButton — plays a reading aloud (F2).
  *
- * Reads from the shared SpeechController. When no Japanese voice is available the
- * button is hidden entirely (so there are no dead controls), unless `keepSpace`
- * is set, in which case it renders disabled with an explanatory tooltip. Every
- * press is a user gesture, satisfying the iOS autoplay rule. A short "playing"
- * pulse gives visual feedback.
+ * Reads from the shared SpeechController. When no Japanese (`ja-JP`) voice is
+ * available, the button does NOT silently disappear — it renders DISABLED with a
+ * tooltip + accessible label explaining why ("no silent failures", per spec). A
+ * muted 🔇 icon signals the disabled state. Every press is a user gesture
+ * (satisfying the iOS autoplay rule); a short "playing" pulse gives feedback.
  */
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
@@ -18,6 +18,9 @@ interface SpeakerButtonProps {
   label?: string
 }
 
+const UNAVAILABLE_TITLE =
+  'Audio unavailable — this browser/device has no Japanese (ja-JP) voice installed.'
+
 export default function SpeakerButton({
   reading,
   variant = 'full',
@@ -25,9 +28,6 @@ export default function SpeakerButton({
 }: SpeakerButtonProps) {
   const { speech, speechAvailable } = useApp()
   const [playing, setPlaying] = useState(false)
-
-  // No voice → no button. Don't show a control the user can't use.
-  if (!speechAvailable) return null
 
   const handle = () => {
     speech.speak(reading)
@@ -42,10 +42,11 @@ export default function SpeakerButton({
         type="button"
         className={`sr-speak${playing ? ' playing' : ''}`}
         onClick={handle}
-        title={`Hear ${reading}`}
-        aria-label={`Hear ${reading}`}
+        disabled={!speechAvailable}
+        title={speechAvailable ? `Hear ${reading}` : UNAVAILABLE_TITLE}
+        aria-label={speechAvailable ? `Hear ${reading}` : `Audio unavailable for ${reading}`}
       >
-        🔊
+        {speechAvailable ? '🔊' : '🔇'}
       </button>
     )
   }
@@ -55,9 +56,11 @@ export default function SpeakerButton({
       type="button"
       className={`sound-btn${playing ? ' playing' : ''}`}
       onClick={handle}
-      aria-label={label}
+      disabled={!speechAvailable}
+      title={speechAvailable ? undefined : UNAVAILABLE_TITLE}
+      aria-label={speechAvailable ? label : `${label} — audio unavailable, no Japanese voice installed`}
     >
-      🔊 {label}
+      {speechAvailable ? '🔊' : '🔇'} {speechAvailable ? label : 'Audio unavailable'}
     </button>
   )
 }
