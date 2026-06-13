@@ -10,7 +10,7 @@
  * Unlike the original, missed cards are NOT re-inserted into this session — the
  * Leitner scheduler brings them back next time instead. Each card is shown once.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import AppHeader from '../components/AppHeader'
 import ScoreBar from '../components/ScoreBar'
@@ -49,6 +49,12 @@ export default function Quiz() {
 
   // Did the learner miss EITHER step of the current card? (no re-render needed)
   const missedRef = useRef(false)
+  // Re-entrancy guards against fast/double Enter: `answeredRef` blocks a second
+  // check of the same step; `finishedRef` blocks a second finish of the game.
+  const answeredRef = useRef(false)
+  const finishedRef = useRef(false)
+  // Mirror of `score` read synchronously at finish (state may lag a keystroke).
+  const scoreRef = useRef(0)
   const meaningRef = useRef<QuizInputHandle>(null)
   const readingRef = useRef<QuizInputHandle>(null)
   const nextBtnRef = useRef<HTMLButtonElement>(null)
@@ -58,9 +64,14 @@ export default function Quiz() {
   // Total points "asked" so far = points-per-card × cards started.
   const total = card ? perCard * (index + 1) : perCard * cards.length
 
-  // Timer: count up once per second for the whole session.
+  // Timer: wall-clock based so it can't drift or pause when the tab is
+  // backgrounded (which would make "best time" unfair). We stamp a start time
+  // once and recompute elapsed each tick and at finish.
+  const startedAtRef = useRef<number | null>(null)
+  if (startedAtRef.current === null) startedAtRef.current = Date.now()
+  const elapsedSec = () => Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000)
   useEffect(() => {
-    const id = window.setInterval(() => setTimerSec((s) => s + 1), 1000)
+    const id = window.setInterval(() => setTimerSec(elapsedSec()), 1000)
     return () => window.clearInterval(id)
   }, [])
 
@@ -70,19 +81,18 @@ export default function Quiz() {
   }, [card, levelKey, markSeen])
 
   // Keyboard flow (F8): focus the active input while answering, or the Next
-  // button once an answer is revealed, so Enter always advances.
-  useEffect(() => {
+  // button once an answer is revealed, so Enter always advances. useLayoutEffect
+  // moves focus synchronously after the DOM commit — no ~30ms window where focus
+  // sits on <body> and a keystroke is dropped.
+  useLayoutEffect(() => {
     if (!card) return
-    const t = window.setTimeout(() => {
-      if (revealed) {
-        nextBtnRef.current?.focus()
-      } else if (step === 'reading') {
-        readingRef.current?.focus()
-      } else {
-        meaningRef.current?.focus()
-      }
-    }, 30)
-    return () => window.clearTimeout(t)
+    if (revealed) {
+      nextBtnRef.current?.focus()
+    } else if (step === 'reading') {
+      readingRef.current?.focus()
+    } else {
+      meaningRef.current?.focus()
+    }
   }, [revealed, step, index, card])
 
   if (!session || cards.length === 0) {
@@ -105,14 +115,23 @@ export default function Quiz() {
   const prevBestTime = prevBest ? `best ${formatTime(prevBest.bestTime)}` : ''
   const prevBestScore = prevBest ? `best ${prevBest.bestScore} / ${prevBest.bestTotal}` : ''
 
+  function bumpScore() {
+    scoreRef.current += 1
+    setScore(scoreRef.current)
+  }
+
   // ── advance / finish ────────────────────────────────────────────────
   function endCard(passed: boolean) {
+    // Guard: a held/double Enter must never finish the game twice (which would
+    // double-count the session and re-add the score).
+    if (finishedRef.current) return
     resolveCard(levelKey, card.kanji, passed)
     if (isLast) {
+      finishedRef.current = true
       const uniqueCount = new Set(cards.map((c) => c.kanji)).size
-      // `score` already reflects the last step's increment (a render happened
-      // between the answer check and this Next click).
-      finishGame({ score, total, timeSec: timerSec, uniqueCount })
+      // Read the score from the ref so a keystroke that out-runs React's render
+      // can't finish with a stale value.
+      finishGame({ score: scoreRef.current, total, timeSec: elapsedSec(), uniqueCount })
       return
     }
     // Reset for the next card.
@@ -123,6 +142,7 @@ export default function Quiz() {
     setFlash('')
     setShowSpeak(false)
     missedRef.current = false
+    answeredRef.current = false
   }
 
   function onNext() {
@@ -132,18 +152,21 @@ export default function Quiz() {
       setRevealed(false)
       setFeedback(null)
       setFlash('')
+      answeredRef.current = false // the reading step hasn't been answered yet
       return
     }
     endCard(!missedRef.current)
   }
 
   function checkMeaning() {
+    if (answeredRef.current) return // ignore a second check of the same step
     const value = meaningRef.current?.getValue() ?? ''
     if (!value.trim()) return
+    answeredRef.current = true
     const correct = isMeaningCorrect(value, card)
     setFlash(correct ? 'correct' : 'wrong')
     if (correct) {
-      setScore((s) => s + 1)
+      bumpScore()
       setFeedback({ text: '✓ Correct!', correct: true })
     } else {
       missedRef.current = true
@@ -155,12 +178,14 @@ export default function Quiz() {
   }
 
   function checkReading() {
+    if (answeredRef.current) return
     const value = readingRef.current?.getValue() ?? ''
     if (!value.trim()) return
+    answeredRef.current = true
     const correct = isReadingCorrect(value, card)
     setFlash(correct ? 'correct' : 'wrong')
     if (correct) {
-      setScore((s) => s + 1)
+      bumpScore()
       setFeedback({ text: '✓ Correct!', correct: true })
     } else {
       missedRef.current = true
