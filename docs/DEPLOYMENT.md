@@ -13,9 +13,15 @@ Kanji Flash is a plain Vite SPA, so Vercel's built-in **Vite** preset is all you
 | Build Command | **`npm run build`** |
 | Output Directory | **`dist`** |
 
-You do **not** need a `vercel.json`. And because this app has **no client-side router**
-(it switches screens from in-memory state, not URL paths), there are also **no SPA
+You don't need a `vercel.json` **for routing**: this app has **no client-side router**
+(it switches screens from in-memory state, not URL paths), so there are **no SPA
 rewrite rules to add** — every request just serves the static build.
+
+This repo **does** ship a `vercel.json` anyway, for a different reason: to set a
+**Content-Security-Policy and security headers** on every response (defense-in-depth,
+clickjacking protection, MIME-sniffing protection). See
+[Security headers & CSP](#security-headers--csp) below. Vercel applies the `headers`
+block automatically — no extra setup in the dashboard.
 
 ## What deploys
 
@@ -29,6 +35,47 @@ Running `npm run build` does three things, in order:
    app works offline.
 
 Vercel runs this exact command, so the deployed build is the same one you'd get locally.
+
+## Security headers & CSP
+
+`vercel.json` attaches these headers to **every route** (`source: "/(.*)"`):
+
+- **`Content-Security-Policy`** — the core lock-down. `default-src 'self'` denies
+  everything by default, then we re-allow exactly what the app needs:
+  - `script-src 'self'` — both bundled scripts are external same-origin, so **no
+    `'unsafe-inline'`** is needed for scripts.
+  - `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com` — React's inline
+    `style={{...}}` attributes require `'unsafe-inline'`; the Google Fonts stylesheet
+    loads from `fonts.googleapis.com`.
+  - `font-src 'self' https://fonts.gstatic.com` — the actual font files.
+  - `img-src 'self' data:` — same-origin icons/favicon plus `data:` URIs.
+  - `connect-src 'self'` — the app makes no external fetch/XHR calls.
+  - `worker-src 'self'` / `manifest-src 'self'` — the Workbox service worker and PWA
+    manifest are same-origin.
+  - `base-uri 'self'`, `form-action 'self'`, `object-src 'none'`,
+    `frame-ancestors 'none'`, `upgrade-insecure-requests` — standard hardening.
+- **`X-Frame-Options: DENY`** + `frame-ancestors 'none'` — block clickjacking (no
+  embedding in iframes).
+- **`X-Content-Type-Options: nosniff`** — stop MIME-type sniffing.
+- **`Referrer-Policy: strict-origin-when-cross-origin`** — trim referrer leakage.
+- **`Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()`**
+  — the app needs none of these capabilities, so deny them.
+
+### Post-deploy verification
+
+After the **first** deploy, open the production site and confirm the CSP didn't break
+anything:
+
+1. **Service worker still registers** — DevTools → **Application → Service Workers**;
+   it should show an activated worker for the origin.
+2. **Google Fonts still load** — the **Console** has **no CSP violation** warnings, and
+   text renders in the intended font.
+3. **Headers are present** — run `curl -I https://<domain>` and confirm the response
+   includes both `Content-Security-Policy` and `X-Frame-Options`.
+
+If the service worker or fonts break, the **Console** names the **blocked directive**
+(e.g. `Refused to load … because it violates … "font-src"`). Add the reported origin to
+that directive in `vercel.json` and redeploy.
 
 ## Runbook: deploy + Vercel-registered domain
 
