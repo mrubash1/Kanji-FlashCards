@@ -1,0 +1,961 @@
+/* ─────────────────────────────────────────────
+   COMPONENT STYLES — ported from the original kanji-flashcards.html <style>
+   block, keeping the SAME class names so the card and quiz screens look
+   identical. Layout is reworked to be mobile-first (F6) and a single AppHeader
+   replaces the three ad-hoc back rows (F5), but colours, radii, typography, and
+   card visuals are unchanged.
+   ───────────────────────────────────────────── */
+
+/* ── App shell / layout ─────────────────────────────────────────────── */
+.app {
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Main column — the original capped content at 480px and centred it. */
+.screen {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  /* leave room for the fixed thumb-zone action bar on phones */
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+}
+
+/* Wider, calmer column on desktop (F6). */
+@media (min-width: 900px) {
+  .screen {
+    max-width: 520px;
+    padding-top: 2rem;
+  }
+}
+
+/* ── Typography helpers ─────────────────────────────────────────────── */
+.logo {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 4rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 3px 3px 0px rgba(233, 69, 96, 0.3);
+}
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+.subtitle {
+  color: var(--text-dim-aa);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  max-width: 340px;
+  text-align: center;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 2rem;
+  min-height: 44px; /* WCAG touch target (F6/F8) */
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.btn:hover {
+  opacity: 0.9;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--surface2);
+}
+.btn-block {
+  width: 100%;
+}
+
+/* ── AppHeader (F5) — one consistent header for every screen ─────────── */
+.app-header {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem 0;
+}
+.app-header__title {
+  flex: 1;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  border: 2px solid var(--surface2);
+  color: var(--text-dim-aa);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.header-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.header-btn--ghost {
+  border-color: transparent;
+}
+/* keep the title centred when only one side button is present */
+.header-spacer {
+  min-width: 44px;
+}
+
+/* ── Score bar (quiz) ───────────────────────────────────────────────── */
+.score-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text-dim-aa);
+}
+.score-bar .score-number {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 1rem;
+}
+.sb-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+}
+.sb-prev {
+  font-size: 0.65rem;
+  color: var(--text-dim-aa);
+  opacity: 0.85;
+  min-height: 0.8rem;
+}
+.timer-display {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+.timer-display.timer-warn {
+  color: var(--gold);
+}
+.timer-display.timer-hot {
+  color: var(--accent);
+}
+
+/* ── Global stats banner (topic picker) ─────────────────────────────── */
+.global-stats {
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-dim-aa);
+}
+.gs-val {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.gs-label {
+  font-size: 0.7rem;
+  display: block;
+}
+
+/* ── Progress line ──────────────────────────────────────────────────── */
+.progress-wrap {
+  width: 100%;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+/* ── The flashcard ──────────────────────────────────────────────────── */
+.card {
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  border: 2px solid var(--surface2);
+  transition: border-color 0.3s ease;
+  animation: slideIn 0.25s ease;
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.card.flash-correct {
+  border-color: var(--correct);
+}
+.card.flash-wrong {
+  border-color: var(--wrong);
+}
+.kanji-display {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 5rem;
+  line-height: 1.1;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.english-display {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.phase-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-soft);
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+.hint-text {
+  font-size: 0.85rem;
+  color: var(--text-dim-aa);
+  margin-bottom: 1rem;
+}
+
+/* Quiz text input (reading + meaning) */
+.quiz-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--surface2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-family: 'Noto Sans JP', sans-serif;
+  text-align: center;
+  margin-bottom: 0.75rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.quiz-input:focus {
+  border-color: var(--accent);
+}
+
+.feedback {
+  min-height: 2rem;
+  font-size: 0.95rem;
+  text-align: center;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.feedback.correct {
+  color: var(--correct);
+}
+.feedback.wrong {
+  color: var(--accent-soft);
+}
+
+/* ── Thumb-zone action bar (F6) ─────────────────────────────────────── */
+.action-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+/* On phones the primary actions stick to the bottom third for thumb reach. */
+@media (max-width: 480px) {
+  .action-bar--sticky {
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    padding: 0.75rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+    z-index: 5;
+  }
+}
+
+/* ── Speaker buttons ────────────────────────────────────────────────── */
+.sound-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--surface2);
+  background: transparent;
+  color: var(--text-dim-aa);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.sound-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.sound-btn.playing {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.sr-speak {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--surface2);
+  background: transparent;
+  color: var(--text-dim-aa);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.sr-speak:hover,
+.sr-speak.playing {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ── Welcome / onboarding ───────────────────────────────────────────── */
+.welcome-points {
+  text-align: left;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0.5rem 0;
+}
+.welcome-point {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+.welcome-point .wp-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+.welcome-point .wp-dim {
+  color: var(--text-dim-aa);
+}
+
+/* ── Level cards ────────────────────────────────────────────────────── */
+.level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+.level-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--surface2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+  width: 100%;
+}
+.level-card:hover {
+  border-color: var(--green);
+}
+.level-card:active {
+  transform: scale(0.98);
+}
+.lvl-badge {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--green);
+  min-width: 2.5rem;
+}
+.lvl-info {
+  flex: 1;
+}
+.lvl-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+}
+.lvl-desc {
+  font-size: 0.78rem;
+  color: var(--text-dim-aa);
+  display: block;
+}
+.lvl-arrow {
+  color: var(--text-dim-aa);
+  font-size: 1.2rem;
+}
+.level-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.level-card.locked .lvl-badge {
+  color: var(--text-dim-aa);
+}
+.level-card.custom-card {
+  border-color: rgba(167, 139, 250, 0.4);
+}
+.level-card.custom-card:hover {
+  border-color: var(--purple);
+}
+.level-card.custom-card .lvl-badge {
+  color: var(--purple);
+}
+
+/* ── Topic grid ─────────────────────────────────────────────────────── */
+.topic-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+}
+.topic-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1.1rem 0.75rem;
+  min-height: 44px;
+  background: var(--surface);
+  border: 2px solid var(--surface2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+  text-align: center;
+}
+.topic-card:hover {
+  border-color: var(--green);
+}
+.topic-card:active {
+  transform: scale(0.97);
+}
+.topic-card.seen-card {
+  border-color: rgba(245, 166, 35, 0.4);
+}
+.topic-card.seen-card:hover {
+  border-color: var(--gold);
+}
+.topic-card.seen-card .topic-kanji {
+  color: var(--gold);
+}
+.topic-card.mistake-card {
+  border-color: rgba(233, 69, 96, 0.4);
+}
+.topic-card.mistake-card:hover {
+  border-color: var(--accent);
+}
+.topic-card.mistake-card .topic-kanji {
+  color: var(--accent);
+}
+.topic-card.all-card {
+  border-color: rgba(167, 139, 250, 0.4);
+  grid-column: 1 / -1;
+}
+.topic-card.all-card:hover {
+  border-color: var(--purple);
+}
+.topic-card.all-card .topic-kanji {
+  color: var(--purple);
+}
+.topic-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.topic-kanji {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 2rem;
+  color: var(--green);
+  line-height: 1;
+}
+.topic-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.topic-count {
+  font-size: 0.75rem;
+  color: var(--text-dim-aa);
+}
+.divider {
+  width: 100%;
+  height: 1px;
+  background: var(--surface2);
+}
+
+/* ── Study-first link / study list ──────────────────────────────────── */
+.study-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  min-height: 44px;
+  background: var(--surface);
+  border: 2px dashed var(--surface2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.study-link:hover {
+  border-color: var(--gold);
+}
+.sl-sub {
+  color: var(--text-dim-aa);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+.study-section {
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+.study-section h3 {
+  font-size: 0.95rem;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--surface2);
+}
+.study-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+.study-row:hover {
+  background: var(--surface);
+}
+.sr-kanji {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 1.9rem;
+  color: var(--text);
+  min-width: 2.4rem;
+  text-align: center;
+  line-height: 1;
+}
+.sr-info {
+  flex: 1;
+}
+.sr-english {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.sr-reading {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-dim-aa);
+}
+.sr-romaji {
+  color: var(--text-dim-aa);
+  font-style: italic;
+}
+
+/* ── Mastery bar ────────────────────────────────────────────────────── */
+.mastery-wrap {
+  width: 100%;
+}
+.mastery-bar {
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface2);
+  overflow: hidden;
+  display: flex;
+}
+.mastery-green {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.4s ease;
+}
+.mastery-yellow {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.4s ease;
+}
+.mastery-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--text-dim-aa);
+}
+.ml-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.ml-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+.ml-dot.green {
+  background: var(--green);
+}
+.ml-dot.yellow {
+  background: var(--gold);
+}
+.ml-dot.empty {
+  background: var(--surface2);
+}
+
+/* Per-box Leitner distribution (F1) — a slim 5-segment strip under mastery. */
+.box-strip {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.box-seg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.62rem;
+  color: var(--text-dim-aa);
+}
+.box-seg .box-fill {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface2);
+}
+.box-seg .box-fill.has {
+  background: var(--purple);
+}
+.due-pill {
+  font-size: 0.78rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ── Custom decks ───────────────────────────────────────────────────── */
+.deck-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 2px solid var(--surface2);
+  border-radius: var(--radius);
+  margin-bottom: 0.6rem;
+  width: 100%;
+}
+.dr-info {
+  flex: 1;
+  min-width: 0;
+}
+.dr-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dr-meta {
+  font-size: 0.78rem;
+  color: var(--text-dim-aa);
+}
+.dr-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  border: 1px solid var(--surface2);
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.dr-btn.dr-play {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: var(--green);
+}
+.dr-btn.dr-play:hover {
+  border-color: var(--green);
+}
+.dr-btn.dr-edit:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.dr-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Empty states (F7) */
+.empty-state {
+  text-align: center;
+  color: var(--text-dim-aa);
+  font-size: 0.9rem;
+  padding: 2rem 1rem;
+  line-height: 1.6;
+}
+.empty-state .es-emoji {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* Deck editor */
+.editor-field {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.editor-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim-aa);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.editor-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--surface2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.editor-input:focus {
+  border-color: var(--purple);
+}
+select.editor-input {
+  cursor: pointer;
+}
+.editor-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim-aa);
+  margin-top: 0.35rem;
+}
+.editor-section-title {
+  width: 100%;
+  font-size: 0.95rem;
+  color: var(--purple);
+  margin: 0.5rem 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--surface2);
+}
+.card-edit {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ce-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ce-num {
+  font-size: 0.75rem;
+  color: var(--text-dim-aa);
+  font-weight: 600;
+}
+.ce-remove {
+  background: transparent;
+  border: none;
+  color: var(--accent-soft);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.4rem;
+  min-width: 44px;
+  min-height: 44px;
+}
+.card-edit input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: 'Noto Sans JP', sans-serif;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.card-edit input:focus {
+  border-color: var(--purple);
+}
+.card-edit input.ce-dim {
+  opacity: 0.5;
+}
+
+/* ── End / results screen ───────────────────────────────────────────── */
+.end-emoji {
+  font-size: 3rem;
+}
+.final-score {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+.final-label {
+  font-size: 1rem;
+  color: var(--text-dim-aa);
+}
+.score-message {
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm);
+  max-width: 320px;
+  text-align: center;
+}
+.personal-best {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-dim-aa);
+  text-align: center;
+}
+.pb-highlight {
+  color: var(--gold);
+  font-weight: 700;
+}
+.personal-best.new-record {
+  border: 1px solid var(--gold);
+}
+.end-topic-label {
+  font-size: 0.8rem;
+  color: var(--text-dim-aa);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  color: var(--text);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--gold);
+  transition: bottom 0.35s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  max-width: calc(100vw - 2rem);
+  text-align: center;
+}
+.toast.show {
+  bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* small responsive tweak from the original */
+@media (max-width: 480px) {
+  .kanji-display {
+    font-size: 4rem;
+  }
+  .btn {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+  }
+}

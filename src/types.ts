@@ -123,6 +123,29 @@ export interface StorageBlob {
   savedAt: number
 }
 
+/** Everything needed to play one quiz session. */
+export interface SessionConfig {
+  /** 'N5' | 'N4' | 'custom:<deckId>' — namespaces progress keys. */
+  levelKey: string
+  topicName: string
+  phaseMode: PhaseMode
+  cards: CardCore[]
+}
+
+/** The outcome of a finished game, used by the Results screen. */
+export interface GameResult {
+  levelKey: string
+  topicName: string
+  score: number
+  total: number
+  timeSec: number
+  uniqueCount: number
+  pb: PersonalBest
+  isFirstAttempt: boolean
+  newBestScore: boolean
+  newBestTime: boolean
+}
+
 /**
  * The set of full-screen views. Mirrors the original `showScreen(id)` model so
  * the diff is teachable: one screen visible at a time, chosen by this union.
