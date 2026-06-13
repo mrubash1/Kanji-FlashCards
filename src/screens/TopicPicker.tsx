@@ -16,6 +16,7 @@ import {
   buildTopicSession,
   buildAllCardsSession,
   buildKanjiSession,
+  buildDueSession,
 } from '../lib/game'
 import { summarize } from '../lib/scheduler'
 
@@ -38,8 +39,7 @@ export default function TopicPicker() {
     const levelStates = Object.fromEntries(
       Object.entries(progress.cardStates).filter(([k]) => k.startsWith(prefix)),
     )
-    const { perBox } = summarize(levelStates)
-    const due = Object.values(levelStates).filter((s) => s.due <= now).length
+    const { perBox, dueToday: due } = summarize(levelStates, now)
 
     const accuracy =
       progress.globalTotalAsked > 0
@@ -65,6 +65,22 @@ export default function TopicPicker() {
           perBox={stats.perBox}
           due={stats.due}
         />
+
+        {/* The SRS review queue — the heart of spaced repetition. Studying a
+            topic still works any time; this routes straight to what's due. */}
+        {stats.due > 0 ? (
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={() => startSession(buildDueSession(level, progress.cardStates, Date.now()))}
+          >
+            🔁 Review {stats.due} due card{stats.due === 1 ? '' : 's'} →
+          </button>
+        ) : (
+          <p className="subtitle" style={{ margin: 0 }}>
+            ✅ Nothing due right now — study a topic below to learn more.
+          </p>
+        )}
 
         <div className="global-stats">
           <div>

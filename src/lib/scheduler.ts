@@ -87,22 +87,23 @@ export function getDueCards(states: Record<string, CardState>, now: number): str
  * `perBox` is a length-5 array where index 0 counts box-1 cards, index 1 counts
  * box-2 cards, and so on.
  *
- * `dueToday` — a deliberate design choice. A truly "due today" count needs the
- * current time, but this function takes no `now` parameter and we want it to
- * stay pure (reading `Date.now()` inside would make it non-deterministic and
- * awkward to test). So we define `dueToday` as "the number of cards sitting in
- * box 1". Box-1 cards always have a 0-day interval — they're due immediately —
- * so this is the meaningful, time-independent stand-in for "needs review now".
+ * `dueToday` is the number of cards actually due at or before `now` (i.e. the
+ * same `due <= now` test `getDueCards` uses), so the UI's "due" count and the
+ * review queue can never disagree. `now` is passed in to keep the function pure
+ * and deterministic for tests.
  */
-export function summarize(states: Record<string, CardState>): { perBox: number[]; dueToday: number } {
+export function summarize(
+  states: Record<string, CardState>,
+  now: number,
+): { perBox: number[]; dueToday: number } {
   const perBox = [0, 0, 0, 0, 0]
   let dueToday = 0
   for (const key of Object.keys(states)) {
-    const box = states[key].box
+    const state = states[key]
     // Guard against out-of-range boxes from corrupt data; clamp into 1..MAX_BOX.
-    const idx = Math.min(Math.max(box, 1), MAX_BOX) - 1
+    const idx = Math.min(Math.max(state.box, 1), MAX_BOX) - 1
     perBox[idx] += 1
-    if (box === 1) dueToday += 1
+    if (state.due <= now) dueToday += 1
   }
   return { perBox, dueToday }
 }

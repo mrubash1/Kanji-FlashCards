@@ -100,19 +100,21 @@ describe('getDueCards', () => {
 })
 
 describe('summarize', () => {
-  it('counts cards per box and dueToday = box-1 count', () => {
+  it('counts cards per box and dueToday = cards due at/before now', () => {
+    const DAY = 86_400_000
     const states: Record<string, CardState> = {
-      a: { box: 1, due: NOW, lastReviewed: 0 },
-      b: { box: 1, due: NOW, lastReviewed: 0 },
-      c: { box: 2, due: NOW, lastReviewed: 0 },
-      d: { box: 5, due: NOW, lastReviewed: 0 },
+      a: { box: 1, due: NOW, lastReviewed: 0 }, // due now
+      b: { box: 1, due: NOW - DAY, lastReviewed: 0 }, // overdue
+      c: { box: 2, due: NOW + DAY, lastReviewed: 0 }, // not yet due
+      d: { box: 5, due: NOW, lastReviewed: 0 }, // due now (box 5)
     }
-    const { perBox, dueToday } = summarize(states)
+    const { perBox, dueToday } = summarize(states, NOW)
     expect(perBox).toEqual([2, 1, 0, 0, 1])
-    expect(dueToday).toBe(2)
+    // a, b, d are due; c is in the future — proves due is time-based, not box-1.
+    expect(dueToday).toBe(3)
   })
 
   it('handles an empty collection', () => {
-    expect(summarize({})).toEqual({ perBox: [0, 0, 0, 0, 0], dueToday: 0 })
+    expect(summarize({}, NOW)).toEqual({ perBox: [0, 0, 0, 0, 0], dueToday: 0 })
   })
 })

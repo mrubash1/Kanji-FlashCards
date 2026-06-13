@@ -3,8 +3,9 @@
  * components so they can be reasoned about and (where useful) unit-tested in
  * isolation, exactly like the original's free functions (shuffle, formatTime…).
  */
-import type { CardCore, Deck, Level, PhaseMode, SessionConfig, Topic } from '../types'
+import type { CardCore, CardState, Deck, Level, PhaseMode, SessionConfig, Topic } from '../types'
 import { buildMeaningAlts, getCardsByLevel } from '../data/cards'
+import { getDueCards } from './scheduler'
 
 /** Fisher–Yates shuffle returning a NEW array (never mutates the input). */
 export function shuffle<T>(array: readonly T[]): T[] {
@@ -91,6 +92,39 @@ export function buildTopicSession(level: Level, topic: Topic): SessionConfig {
 /** A session over every card in a built-in level. */
 export function buildAllCardsSession(level: Level): SessionConfig {
   return { levelKey: level, topicName: 'All cards', phaseMode: 'both', cards: getCardsByLevel(level) }
+}
+
+/**
+ * The cards in a level that are due for review right now, per the Leitner
+ * scheduler — this is what turns the SRS from "computed but unused" into an
+ * actual review queue. Card states are keyed `"<level>:<kanji>"`; we read the
+ * due keys from `getDueCards` and map them back to full cards (preserving deck
+ * order). Cards never reviewed have no state, so they aren't "due" here — they
+ * enter the schedule the first time they're studied via a topic.
+ */
+export function dueKanjiForLevel(
+  level: Level,
+  cardStates: Record<string, CardState>,
+  now: number,
+): string[] {
+  const prefix = `${level}:`
+  const levelStates: Record<string, CardState> = {}
+  for (const key of Object.keys(cardStates)) {
+    if (key.startsWith(prefix)) levelStates[key] = cardStates[key]
+  }
+  // Strip the "<level>:" prefix back off to recover the bare kanji.
+  return getDueCards(levelStates, now).map((key) => key.slice(prefix.length))
+}
+
+/** A "review the cards due now" session for a built-in level. */
+export function buildDueSession(
+  level: Level,
+  cardStates: Record<string, CardState>,
+  now: number,
+): SessionConfig {
+  const due = new Set(dueKanjiForLevel(level, cardStates, now))
+  const cards = getCardsByLevel(level).filter((c) => due.has(c.kanji))
+  return { levelKey: level, topicName: 'Review', phaseMode: 'both', cards }
 }
 
 /** A session from an arbitrary set of kanji within a level (seen / mistakes). */
