@@ -54,6 +54,12 @@ export default function TopicPicker() {
   const topics = TOPICS[level]
   const levelCards = getCardsByLevel(level)
 
+  // Truly fresh learner: no graded cards anywhere and no finished sessions.
+  // In that case we replace the all-zeros global-stats banner with a friendly
+  // empty state (F7). The due section below still renders either way.
+  const noProgress =
+    Object.keys(progress.cardStates).length === 0 && progress.globalSessions === 0
+
   return (
     <>
       <AppHeader title={`Topics · ${level}`} onBack={goHome} backLabel="Levels" />
@@ -82,22 +88,29 @@ export default function TopicPicker() {
           </p>
         )}
 
-        <div className="global-stats">
-          <div>
-            <span className="gs-label">Total score</span>
-            <span className="gs-val">
-              {progress.globalTotalScore} / {progress.globalTotalAsked}
-            </span>
+        {noProgress ? (
+          <div className="empty-state">
+            <span className="es-emoji" aria-hidden="true">🌱</span>
+            No progress yet — pick a topic below to start your first session.
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <span className="gs-label">Sessions</span>
-            <span className="gs-val">{progress.globalSessions}</span>
+        ) : (
+          <div className="global-stats">
+            <div>
+              <span className="gs-label">Total score</span>
+              <span className="gs-val">
+                {progress.globalTotalScore} / {progress.globalTotalAsked}
+              </span>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span className="gs-label">Sessions</span>
+              <span className="gs-val">{progress.globalSessions}</span>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="gs-label">Best accuracy</span>
+              <span className="gs-val">{stats.accuracy}</span>
+            </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <span className="gs-label">Best accuracy</span>
-            <span className="gs-val">{stats.accuracy}</span>
-          </div>
-        </div>
+        )}
 
         <button type="button" className="study-link" onClick={() => navigate('study')}>
           📚 Study the kanji first
@@ -124,8 +137,8 @@ export default function TopicPicker() {
 
         <div className="divider" />
 
-        {/* Standard topics */}
-        <div className="topic-grid">
+        {/* Standard topics — a navigational group, so it's a <nav> landmark (F8). */}
+        <nav aria-label="Topics" className="topic-grid">
           {topics.map((topic) => {
             const count = levelCards.filter((c) => topic.keys.includes(c.kanji)).length
             return (
@@ -141,7 +154,7 @@ export default function TopicPicker() {
               </button>
             )
           })}
-        </div>
+        </nav>
 
         <div className="divider" />
 

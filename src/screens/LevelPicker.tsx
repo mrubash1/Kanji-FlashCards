@@ -6,6 +6,10 @@
 import { useApp } from '../context/AppContext'
 import AppHeader from '../components/AppHeader'
 import DataControls from '../components/DataControls'
+import { getCardsByLevel } from '../data/cards'
+import { cardKey } from '../lib/keys'
+import { summarize } from '../lib/scheduler'
+import type { Level } from '../types'
 
 const LOCKED = [
   { badge: 'N3', name: 'Intermediate' },
@@ -14,7 +18,25 @@ const LOCKED = [
 ]
 
 export default function LevelPicker() {
-  const { selectLevel, navigate } = useApp()
+  const { selectLevel, navigate, progress } = useApp()
+
+  // SRS snapshot for an unlocked level: how many cards are due now, and how many
+  // have been mastered (status green). Belongs on the level screen per spec; we
+  // only surface it when there's something to show, so a fresh user sees nothing.
+  function levelSummary(level: Level): { due: number; learned: number } {
+    const prefix = `${level}:`
+    const levelStates = Object.fromEntries(
+      Object.entries(progress.cardStates).filter(([k]) => k.startsWith(prefix)),
+    )
+    const { dueToday } = summarize(levelStates, Date.now())
+    const learned = getCardsByLevel(level).filter(
+      (c) => progress.cardStatus[cardKey(level, c.kanji)] === 'green',
+    ).length
+    return { due: dueToday, learned }
+  }
+
+  const n5 = levelSummary('N5')
+  const n4 = levelSummary('N4')
 
   return (
     <>
@@ -23,12 +45,15 @@ export default function LevelPicker() {
         <h2 className="title">Choose your level</h2>
         <p className="subtitle">JLPT levels go from N5 (easiest) to N1 (hardest)</p>
 
-        <div className="level-grid">
+        <nav aria-label="Levels" className="level-grid">
           <button type="button" className="level-card" onClick={() => selectLevel('N5')}>
             <span className="lvl-badge">N5</span>
             <span className="lvl-info">
               <span className="lvl-name">Beginner</span>
               <span className="lvl-desc">80 essential kanji · 8 topics</span>
+              {(n5.due > 0 || n5.learned > 0) && (
+                <span className="lvl-desc">🔁 {n5.due} due · {n5.learned} learned</span>
+              )}
             </span>
             <span className="lvl-arrow" aria-hidden="true">→</span>
           </button>
@@ -38,6 +63,9 @@ export default function LevelPicker() {
             <span className="lvl-info">
               <span className="lvl-name">Elementary</span>
               <span className="lvl-desc">164 kanji · 9 topics</span>
+              {(n4.due > 0 || n4.learned > 0) && (
+                <span className="lvl-desc">🔁 {n4.due} due · {n4.learned} learned</span>
+              )}
             </span>
             <span className="lvl-arrow" aria-hidden="true">→</span>
           </button>
@@ -61,7 +89,7 @@ export default function LevelPicker() {
             </span>
             <span className="lvl-arrow" aria-hidden="true">→</span>
           </button>
-        </div>
+        </nav>
 
         <div className="divider" />
         <DataControls />
