@@ -99,8 +99,56 @@ export const CARDS: Card[] = (rawCards as unknown[]).map((raw, i) => {
 /** The two JLPT levels we ship, in display order. */
 export const LEVELS: Level[] = ['N5', 'N4']
 
-/** Topics per level, straight from topics.json (used by the topic picker). */
-export const TOPICS: Record<Level, Topic[]> = rawTopics as Record<Level, Topic[]>
+/**
+ * Validate one raw topic. Like `validateCard`, this exists so a typo in
+ * topics.json fails loudly at load instead of surfacing later as a mysteriously
+ * empty quiz.
+ */
+function validateTopic(value: unknown, level: Level, index: number): Topic {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`topics.json["${level}"][${index}] is not an object`)
+  }
+  const t = value as Record<string, unknown>
+  const label = `topics.json["${level}"][${index}] (name=${String(t.name)})`
+  if (!isNonEmptyString(t.name)) throw new Error(`${label}: "name" must be a non-empty string`)
+  if (!isNonEmptyString(t.sample)) throw new Error(`${label}: "sample" must be a non-empty string`)
+  if (!Array.isArray(t.keys) || !t.keys.every((k) => typeof k === 'string')) {
+    throw new Error(`${label}: "keys" must be an array of strings`)
+  }
+  return { name: t.name, sample: t.sample, keys: t.keys as string[] }
+}
+
+/**
+ * Validate the whole topics map AND cross-check it against the cards: every key
+ * a topic lists must resolve to a real card of that level. This is the "data
+ * fails loudly and early" guarantee the architecture promises — it's what would
+ * have caught a topic/card drift before it shipped.
+ */
+function validateTopics(raw: unknown): Record<Level, Topic[]> {
+  if (typeof raw !== 'object' || raw === null) throw new Error('topics.json is not an object')
+  const byLevel = raw as Record<string, unknown>
+  const out = {} as Record<Level, Topic[]>
+  for (const level of LEVELS) {
+    const list = byLevel[level]
+    if (!Array.isArray(list)) throw new Error(`topics.json["${level}"] must be an array`)
+    out[level] = list.map((t, i) => validateTopic(t, level, i))
+
+    const levelKanji = new Set(CARDS.filter((c) => c.level === level).map((c) => c.kanji))
+    for (const topic of out[level]) {
+      for (const key of topic.keys) {
+        if (!levelKanji.has(key)) {
+          throw new Error(
+            `topics.json: ${level} topic "${topic.name}" lists kanji "${key}" with no matching card`,
+          )
+        }
+      }
+    }
+  }
+  return out
+}
+
+/** Topics per level, validated and cross-checked against the cards. */
+export const TOPICS: Record<Level, Topic[]> = validateTopics(rawTopics)
 
 /** All cards for one level, preserving deck order. */
 export function getCardsByLevel(level: Level): Card[] {
