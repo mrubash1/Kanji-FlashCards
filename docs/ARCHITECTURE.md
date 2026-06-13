@@ -97,7 +97,14 @@ The box decides how long until the card is due again, in whole days:
 | Days until due | 0 | 1 | 2 | 4 | 8 |
 
 Box 1 is `0` days — "due immediately" — so brand-new and just-missed cards come straight
-back. "Due now" is therefore the same as "sitting in box 1".
+back.
+
+**The review queue.** This is what makes the SRS real rather than decorative.
+`scheduler.getDueCards(states, now)` returns the cards whose `due` date has passed;
+`game.buildDueSession(level, cardStates, now)` turns those into a play session; and the
+topic screen shows a **"🔁 Review N due cards"** button that starts it. Studying any
+topic still works at any time, but graded results always update the schedule, and the
+review button routes you to exactly what's due.
 
 **Two-step rule.** In the default `both` mode a card counts as correct only if you pass
 *both* the meaning step and the reading step. The screen enforces that and then calls
