@@ -6,7 +6,7 @@
  * "Save & play" also launches it; Delete removes it after a confirm. The
  * meaning/reading fields dim when the chosen quiz style doesn't use them.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import AppHeader from '../components/AppHeader'
 import { validateDeck, buildDeckSession } from '../lib/game'
@@ -26,12 +26,20 @@ function blankCard(): DeckCard {
 export default function DeckEditor() {
   const { editingDeck, saveDeck, deleteDeck, startSession, navigate, showToast } = useApp()
 
+  // Seed the working copy, always with at least one row so `deck.cards` and
+  // `rowIds` stay in lockstep (no transient blank that would remount on render).
+  const seed = editingDeck ?? { id: `deck_${Date.now()}`, name: '', phaseMode: 'both', cards: [] }
   const [deck, setDeck] = useState<Deck>(
-    editingDeck ?? { id: `deck_${Date.now()}`, name: '', phaseMode: 'both', cards: [blankCard()] },
+    seed.cards.length > 0 ? seed : { ...seed, cards: [blankCard()] },
   )
-  // Always show at least one row to edit.
-  const cards = deck.cards.length > 0 ? deck.cards : [blankCard()]
 
+  // Stable per-row id used as the React key, so removing a middle card doesn't
+  // make React reconcile by position and show stale values in the wrong inputs.
+  const uidRef = useRef(0)
+  const nextUid = () => `row-${uidRef.current++}`
+  const [rowIds, setRowIds] = useState<string[]>(() => deck.cards.map(() => nextUid()))
+
+  const cards = deck.cards
   const dimMeaning = !asksMeaning(deck.phaseMode)
   const dimReading = !asksReading(deck.phaseMode)
 
@@ -40,11 +48,23 @@ export default function DeckEditor() {
   const updateCard = (i: number, field: keyof DeckCard, value: string) =>
     setDeck((d) => ({
       ...d,
-      cards: cards.map((c, idx) => (idx === i ? { ...c, [field]: value } : c)),
+      cards: d.cards.map((c, idx) => (idx === i ? { ...c, [field]: value } : c)),
     }))
-  const addCard = () => setDeck((d) => ({ ...d, cards: [...cards, blankCard()] }))
-  const removeCard = (i: number) =>
-    setDeck((d) => ({ ...d, cards: cards.filter((_, idx) => idx !== i) }))
+  const addCard = () => {
+    setDeck((d) => ({ ...d, cards: [...d.cards, blankCard()] }))
+    setRowIds((ids) => [...ids, nextUid()])
+  }
+  const removeCard = (i: number) => {
+    // Keep at least one editable row; ids and cards always change together.
+    setDeck((d) => {
+      const next = d.cards.filter((_, idx) => idx !== i)
+      return { ...d, cards: next.length ? next : [blankCard()] }
+    })
+    setRowIds((ids) => {
+      const next = ids.filter((_, idx) => idx !== i)
+      return next.length ? next : [nextUid()]
+    })
+  }
 
   const save = (): boolean => {
     const err = validateDeck(deck, false)
@@ -119,7 +139,7 @@ export default function DeckEditor() {
         <h3 className="editor-section-title">Cards</h3>
         <div style={{ width: '100%' }}>
           {cards.map((card, i) => (
-            <div key={i} className="card-edit">
+            <div key={rowIds[i]} className="card-edit">
               <div className="ce-top">
                 <span className="ce-num">Card {i + 1}</span>
                 <button
