@@ -324,14 +324,19 @@ export function loadBlob(storage?: Storage): StorageBlob {
  * try/catch so quota or serialization errors degrade to a warning, never a
  * thrown exception that could break the UI.
  */
-export function saveBlob(blob: StorageBlob, storage?: Storage): void {
+export function saveBlob(blob: StorageBlob, storage?: Storage): boolean {
   const store = resolveStorage(storage)
-  if (!store) return
+  if (!store) return false
   try {
     const toSave: StorageBlob = { ...blob, schemaVersion: SCHEMA_VERSION }
     store.setItem(STORAGE_KEY, JSON.stringify(toSave))
+    return true
   } catch (err) {
+    // Most likely a quota error. We don't throw (that would break the UI), but
+    // we DO report failure so the caller can warn the user their data didn't
+    // save, rather than losing progress silently.
     console.warn('storage.saveBlob: setItem failed (quota?), not saved.', err)
+    return false
   }
 }
 

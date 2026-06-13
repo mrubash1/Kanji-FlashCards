@@ -93,6 +93,21 @@ describe('save → load round-trip', () => {
     const raw = JSON.parse(storage.getItem(STORAGE_KEY)!)
     expect(raw.schemaVersion).toBe(SCHEMA_VERSION)
   })
+
+  it('saveBlob returns true on success, false when setItem throws (quota)', () => {
+    expect(saveBlob(emptyBlob(), storage)).toBe(true)
+    const throwing = {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException('quota', 'QuotaExceededError')
+      },
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    } as unknown as Storage
+    expect(saveBlob(emptyBlob(), throwing)).toBe(false)
+  })
 })
 
 describe('loadBlob — empty / missing', () => {

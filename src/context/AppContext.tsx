@@ -126,16 +126,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return speech.onAvailabilityChange(setSpeechAvailable)
   }, [speech])
 
-  // Persist whenever progress or decks change (the old saveProgress(), automatic).
+  // Ask the browser to keep our localStorage from being evicted (best-effort).
+  // Without this, mobile Safari/Chrome can clear an unused PWA's storage after a
+  // week, silently wiping progress. No-op where unsupported.
   useEffect(() => {
-    const blob: StorageBlob = {
-      schemaVersion: SCHEMA_VERSION,
-      progress,
-      decks,
-      savedAt: Date.now(),
-    }
-    saveBlob(blob)
-  }, [progress, decks])
+    void navigator.storage?.persist?.().catch(() => {})
+  }, [])
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showToast = useCallback((message: string) => {
@@ -143,6 +139,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(null), 2200)
   }, [])
+
+  // Persist progress + decks whenever they change (the original's automatic
+  // saveProgress). We skip the initial mount (nothing changed yet, no point
+  // re-stamping savedAt) and surface a quota failure as a toast so a learner
+  // whose storage is full finds out instead of silently losing progress.
+  const isFirstSave = useRef(true)
+  useEffect(() => {
+    if (isFirstSave.current) {
+      isFirstSave.current = false
+      return
+    }
+    const ok = saveBlob({ schemaVersion: SCHEMA_VERSION, progress, decks, savedAt: Date.now() })
+    if (!ok) showToast('⚠ Couldn’t save — device storage may be full')
+  }, [progress, decks, showToast])
 
   const navigate = useCallback((next: Screen) => setScreen(next), [])
 
