@@ -10,14 +10,28 @@
  * No dependencies — plain Node ESM. Run with:  node scripts/verify-cards.mjs
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
 
-const html = readFileSync(join(root, 'kanji-flashcards.html'), 'utf8')
+/**
+ * Read the original single-file app. It was deleted from the working tree once
+ * parity was verified, but lives on in git history, so we fall back to
+ * `git show` against the initial commit when the file isn't present.
+ */
+const ORIGINAL = 'kanji-flashcards.html'
+const ORIGINAL_COMMIT = 'bbeb8f8' // the "Add files via upload" import commit
+function readOriginal() {
+  const local = join(root, ORIGINAL)
+  if (existsSync(local)) return readFileSync(local, 'utf8')
+  return execSync(`git show ${ORIGINAL_COMMIT}:${ORIGINAL}`, { cwd: root, encoding: 'utf8' })
+}
+
+const html = readOriginal()
 const cards = JSON.parse(readFileSync(join(root, 'src/data/cards.json'), 'utf8'))
 
 /**
