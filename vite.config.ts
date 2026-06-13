@@ -30,7 +30,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Precache the app shell + cards.json so the app works offline.
+        // Precache the built app shell so it works fully offline after first
+        // load. Note: cards.json/topics.json are imported as ES modules, so Vite
+        // inlines them INTO the JS bundle — they ride along in the precached JS
+        // rather than as standalone files. The `json` glob covers the generated
+        // manifest and any future runtime-fetched JSON.
         globPatterns: ['**/*.{js,css,html,json,svg,png,woff2}'],
       },
     }),

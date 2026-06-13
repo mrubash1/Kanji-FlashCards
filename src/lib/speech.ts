@@ -51,6 +51,13 @@ export interface SpeechController {
    * function; call it to stop listening (e.g. on component unmount).
    */
   onAvailabilityChange(cb: (available: boolean) => void): () => void
+
+  /**
+   * Tear down: remove the `voiceschanged` listener, cancel pending voice polls,
+   * and drop all subscribers. Call when the controller is no longer needed so it
+   * leaves no dangling listeners or timers.
+   */
+  dispose(): void
 }
 
 /** Tunable knobs, mainly so tests can drive the poll on fake timers. */
@@ -99,6 +106,9 @@ function createNoopController(): SpeechController {
       // Availability can never change, so we never call back. Still return a
       // valid unsubscribe so callers can wire it up unconditionally.
       return () => {}
+    },
+    dispose() {
+      /* nothing was ever set up */
     },
   }
 }
@@ -157,20 +167,22 @@ export function createSpeechController(
 
   // --- Strategy 1: the standard event. Chrome/Firefox fire this when the -----
   // voice list is ready (and again if the OS voice set changes).
-  synth.addEventListener('voiceschanged', () => {
-    detectAndNotify(japaneseVoice !== null)
-  })
+  const onVoicesChanged = () => detectAndNotify(japaneseVoice !== null)
+  synth.addEventListener('voiceschanged', onVoicesChanged)
 
   // --- Strategy 2: timed polling for Safari, which never fires the event. ----
   // We schedule independent timeouts and bail out of each one early once a
   // voice is found, so a fast browser pays almost nothing. We don't unify these
   // into a single self-rescheduling chain because independent timeouts keep the
   // schedule explicit and trivially advanceable with fake timers in tests.
+  const timers: ReturnType<typeof setTimeout>[] = []
   for (const delay of pollDelays) {
-    setTimeout(() => {
-      if (japaneseVoice !== null) return // already found — skip this tick
-      detectAndNotify(false) // previous was false (no voice yet at this point)
-    }, delay)
+    timers.push(
+      setTimeout(() => {
+        if (japaneseVoice !== null) return // already found — skip this tick
+        detectAndNotify(japaneseVoice !== null) // notify on a real false→true flip
+      }, delay),
+    )
   }
 
   return {
@@ -202,6 +214,12 @@ export function createSpeechController(
       return () => {
         listeners.delete(cb)
       }
+    },
+
+    dispose() {
+      synth!.removeEventListener('voiceschanged', onVoicesChanged)
+      for (const id of timers) clearTimeout(id)
+      listeners.clear()
     },
   }
 }

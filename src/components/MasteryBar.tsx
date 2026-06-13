@@ -43,7 +43,13 @@ export default function MasteryBar({ green, yellow, total, perBox, due }: Master
 
       {perBox && (
         <>
-          <div className="box-strip" aria-hidden="true">
+          <div
+            className="box-strip"
+            role="img"
+            aria-label={`Spaced-review progress, new to mastered: ${perBox
+              .map((c, i) => `box ${i + 1}, ${c} card${c === 1 ? '' : 's'}`)
+              .join('; ')}`}
+          >
             {perBox.map((count, i) => (
               <span key={i} className="box-seg">
                 <span className={`box-fill${count > 0 ? ' has' : ''}`} style={{ opacity: 0.35 + 0.65 * (count / maxBox) }} />

@@ -125,7 +125,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [speechAvailable, setSpeechAvailable] = useState(speech.isAvailable)
   useEffect(() => {
     setSpeechAvailable(speech.isAvailable)
-    return speech.onAvailabilityChange(setSpeechAvailable)
+    const unsub = speech.onAvailabilityChange(setSpeechAvailable)
+    return () => {
+      unsub()
+      speech.dispose()
+    }
   }, [speech])
 
   // Ask the browser to keep our localStorage from being evicted (best-effort).
@@ -205,10 +209,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Mastery colour mirrors the original: green = cleared cleanly,
       // yellow = cleared/attempted with a slip.
       const mastery: Mastery = passed ? 'green' : 'yellow'
+      // Once a card has climbed to box 3+ it's no longer a recent slip, so drop
+      // it from the Mistakes set — that keeps the "Mistakes" tile a genuine
+      // remediation queue instead of a permanent lifetime miss log.
+      let mistakeByLevel = p.mistakeByLevel
+      if (nextState.box >= 3) {
+        const list = p.mistakeByLevel[lk]
+        if (list?.includes(kanji)) {
+          mistakeByLevel = { ...p.mistakeByLevel, [lk]: list.filter((k) => k !== kanji) }
+        }
+      }
       return {
         ...p,
         cardStates: { ...p.cardStates, [key]: nextState },
         cardStatus: { ...p.cardStatus, [key]: mastery },
+        mistakeByLevel,
       }
     })
   }, [])
@@ -323,35 +338,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }, [])
 
-  const value: AppContextValue = {
-    screen,
-    navigate,
-    level,
-    levelKey,
-    progress,
-    decks,
-    speech,
-    speechAvailable,
-    session,
-    result,
-    selectLevel,
-    startSession,
-    finishGame,
-    goHome,
-    quitSession,
-    markSeen,
-    markMistake,
-    resolveCard,
-    editingDeck,
-    openNewDeck,
-    openDeck,
-    saveDeck,
-    deleteDeck,
-    exportData,
-    importData,
-    toast,
-    showToast,
-  }
+  // Memoise so the context value identity only changes when real state does —
+  // the callbacks are already stable (useCallback), so consumers re-render on
+  // state changes, not on every provider render.
+  const value = useMemo<AppContextValue>(
+    () => ({
+      screen,
+      navigate,
+      level,
+      levelKey,
+      progress,
+      decks,
+      speech,
+      speechAvailable,
+      session,
+      result,
+      selectLevel,
+      startSession,
+      finishGame,
+      goHome,
+      quitSession,
+      markSeen,
+      markMistake,
+      resolveCard,
+      editingDeck,
+      openNewDeck,
+      openDeck,
+      saveDeck,
+      deleteDeck,
+      exportData,
+      importData,
+      toast,
+      showToast,
+    }),
+    [
+      screen, navigate, level, levelKey, progress, decks, speech, speechAvailable,
+      session, result, selectLevel, startSession, finishGame, goHome, quitSession,
+      markSeen, markMistake, resolveCard, editingDeck, openNewDeck, openDeck,
+      saveDeck, deleteDeck, exportData, importData, toast, showToast,
+    ],
+  )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

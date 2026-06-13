@@ -95,12 +95,15 @@ function asStringArrayMap(x: unknown): Record<string, string[]> {
   return out
 }
 
-/** Validate one CardState, returning null if it doesn't look right. */
+/** Validate one CardState, returning null if it doesn't look right. Clamps the
+ * box into 1..5 and coerces non-finite numbers so corrupt/hand-edited data can't
+ * poison the scheduler with an out-of-range box or NaN due date. */
 function asCardState(x: unknown): CardState | null {
   if (!isObject(x)) return null
   if (typeof x.box !== 'number' || typeof x.due !== 'number') return null
+  if (!Number.isFinite(x.box) || !Number.isFinite(x.due)) return null
   return {
-    box: x.box,
+    box: Math.min(Math.max(Math.round(x.box), 1), 5),
     due: x.due,
     lastReviewed: asNumber(x.lastReviewed, 0),
   }
