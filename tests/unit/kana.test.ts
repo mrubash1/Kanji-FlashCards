@@ -69,6 +69,17 @@ describe('isReadingCorrect — rejects wrong answers', () => {
   it('rejects empty input', () => {
     expect(isReadingCorrect('', mizu)).toBe(false)
   })
+
+  it('rejects whitespace-only input', () => {
+    expect(isReadingCorrect('   ', mizu)).toBe(false)
+  })
+
+  it('rejects a blank answer even when the card has no reading', () => {
+    // Regression: a custom meaning-only card has reading "". An empty answer
+    // must NOT score correct just because "" === "".
+    expect(isReadingCorrect('', { reading: '', romaji: '' })).toBe(false)
+    expect(isReadingCorrect('anything', { reading: '', romaji: '' })).toBe(false)
+  })
 })
 
 describe('isReadingCorrect — long vowels', () => {

@@ -81,6 +81,10 @@ export function normalizeReading(s: string): string {
 export function isReadingCorrect(input: string, card: { reading: string; romaji: string }): boolean {
   const trimmed = input.trim()
 
+  // A blank answer is never correct — and never let an empty expected reading
+  // (e.g. a custom meaning-only card with no reading) make "" match "".
+  if (trimmed === '' || card.reading === '') return false
+
   // 1. Exact hiragana (what the learner usually types on a JP keyboard).
   if (trimmed === card.reading) return true
 
