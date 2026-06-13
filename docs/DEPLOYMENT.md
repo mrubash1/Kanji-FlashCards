@@ -89,6 +89,21 @@ that directive in `vercel.json` and redeploy.
 3. Deploy. Confirm the first production deploy from the **`main`** branch finishes
    **green** (Vercel marks the deployment "Ready").
 
+### 1a. Continuous deployment (merge to `main` → live)
+
+This is automatic with Vercel's GitHub integration — no repo config or `vercel.json`
+change is needed:
+
+- **Every push/merge to `main` → a production deployment** to your live URL (and the
+  custom domain once attached).
+- **Pushes to other branches and pull requests → preview deployments** at their own
+  throwaway URLs, so you can check a change before it reaches production.
+
+To confirm the wiring after the first deploy: **Project → Settings → Git** and verify
+**Production Branch = `main`** and that the GitHub connection is connected. That single
+setting is what makes "merge to `main`" publish the site. (If you ever want to pause
+auto-deploys, toggle it there or use a `vercel.json` `git.deploymentEnabled` rule.)
+
 ### 2. Buy the domain through Vercel
 
 1. In the project, open **Settings → Domains** (or the **Domains** tab) and choose
